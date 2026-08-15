@@ -7,8 +7,7 @@ import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import Loading from "../components/ui/Loading.jsx";
-import SectionHeader from "../components/ui/SectionHeader.jsx";
-import PublicLayout from "../components/layout/PublicLayout.jsx";
+import SectionLayout, { useEventBase } from "../components/layout/SectionLayout.jsx";
 
 const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
@@ -16,6 +15,7 @@ export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { user, isAuthed, isStaff, profileComplete } = useAuth();
+  const base = useEventBase();
   const [event, setEvent] = useState(null);
   const [registration, setRegistration] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,20 +77,18 @@ export default function EventDetailsPage() {
   const blockedByProfile = isAuthed && !profileComplete;
 
   return (
-    <PublicLayout>
-      <div className="container page">
-        <SectionHeader
-          title={event?.title || "Event Details"}
-          subtitle={event ? `${formatDate(event.startDateTime)} · ${event.location || "TBA"}` : "Loading"}
-          actions={
-            registration && (
-              <Badge variant={registration.attended ? "success" : "warn"}>
-                {registration.attended ? "Checked-in" : "Registered"}
-              </Badge>
-            )
-          }
-        />
-
+    <SectionLayout
+      title={event?.title || "Event Details"}
+      subtitle={event ? `${formatDate(event.startDateTime)} · ${event.location || "TBA"}` : "Loading"}
+      actions={
+        registration && (
+          <Badge variant={registration.attended ? "success" : "warn"}>
+            {registration.attended ? "Checked-in" : "Registered"}
+          </Badge>
+        )
+      }
+    >
+      <>
         {loading && <Loading />}
         {error && <Alert variant="error">{error}</Alert>}
 
@@ -147,10 +145,10 @@ export default function EventDetailsPage() {
                     </div>
                   </Card>
                 )}
-                <Button variant="secondary" onClick={() => navigate(`/events/${eventId}/gallery`)}>
+                <Button variant="secondary" onClick={() => navigate(`${base}/${eventId}/gallery`)}>
                   View Gallery
                 </Button>
-                <Button variant="ghost" onClick={() => navigate(`/events/${eventId}/registration`)}>
+                <Button variant="ghost" onClick={() => navigate(`${base}/${eventId}/registration`)}>
                   View Registration Status
                 </Button>
                 {canManageMedia && (
@@ -165,7 +163,7 @@ export default function EventDetailsPage() {
             </Card>
           </div>
         )}
-      </div>
-    </PublicLayout>
+      </>
+    </SectionLayout>
   );
 }

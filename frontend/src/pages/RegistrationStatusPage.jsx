@@ -5,14 +5,14 @@ import Card from "../components/ui/Card.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import Loading from "../components/ui/Loading.jsx";
-import PageHeader from "../components/ui/PageHeader.jsx";
-import PublicLayout from "../components/layout/PublicLayout.jsx";
+import SectionLayout, { useEventBase } from "../components/layout/SectionLayout.jsx";
 import QrCode from "../components/QrCode.jsx";
 
 const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export default function RegistrationStatusPage() {
   const { eventId } = useParams();
+  const base = useEventBase();
   const [registration, setRegistration] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -34,9 +34,8 @@ export default function RegistrationStatusPage() {
   const attended = registration?.attended;
 
   return (
-    <PublicLayout>
-      <div className="container page">
-        <PageHeader title="Registration Status" subtitle="Show this QR code at the door to check in" />
+    <SectionLayout title="Registration Status" subtitle="Show this QR code at the door to check in">
+      <>
         {loading && <Loading />}
         {error && <Alert variant="error">{error}</Alert>}
         {registration && (
@@ -65,18 +64,18 @@ export default function RegistrationStatusPage() {
             )}
 
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
-              <Link to={`/events/${eventId}`} className="btn btn-ghost">
+              <Link to={`${base}/${eventId}`} className="btn btn-ghost">
                 Back to event
               </Link>
               {attended && (
-                <Link to={`/events/${eventId}/gallery`} className="btn btn-primary">
+                <Link to={`${base}/${eventId}/gallery`} className="btn btn-primary">
                   View gallery
                 </Link>
               )}
             </div>
           </Card>
         )}
-      </div>
-    </PublicLayout>
+      </>
+    </SectionLayout>
   );
 }

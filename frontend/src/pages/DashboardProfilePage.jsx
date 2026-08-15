@@ -34,6 +34,14 @@ const REQUIRED_LABELS = {
 
 const toDateInput = (value) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 
+// Guests must be at least 16; mirrors the same rule enforced in the API.
+const MIN_AGE_YEARS = 16;
+const maxBirthDate = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE_YEARS);
+  return d.toISOString().slice(0, 10);
+};
+
 export default function DashboardProfilePage() {
   const { user, applyUser, refreshUser } = useAuth();
   const fileRef = useRef(null);
@@ -248,7 +256,17 @@ export default function DashboardProfilePage() {
                 {missing.includes("sex") && <div className="error-text">Required</div>}
               </div>
 
-              <Input label="Date of birth" id="dateOfBirth" type="date" name="dateOfBirth" value={form.dateOfBirth} onChange={handleChange} />
+              <Input
+                label="Date of birth"
+                id="dateOfBirth"
+                type="date"
+                name="dateOfBirth"
+                value={form.dateOfBirth}
+                onChange={handleChange}
+                min="1900-01-01"
+                max={maxBirthDate()}
+                helper={`You must be at least ${MIN_AGE_YEARS} years old.`}
+              />
             </div>
 
             <div className="input-row">

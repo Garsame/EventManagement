@@ -10,7 +10,7 @@ export default function PublicLayout({ children }) {
       <Navbar />
       <main className="flex-1">{children}</main>
       <footer className="footer">
-        <div className="container py-10 flex flex-col sm:flex-row justify-between gap-6">
+        <div className="shell-wrap py-10 flex flex-col sm:flex-row justify-between gap-6">
           <div>
             <Link to="/" className="nav-brand">
               <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-hidden="true">

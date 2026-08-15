@@ -51,7 +51,7 @@ export default function HowItWorksPage() {
         image="https://picsum.photos/seed/eventmedia-howitworks/900/700"
       />
 
-      <div className="container">
+      <div className="shell-wrap">
         <div className="section">
           <SectionHeader title="For guests" subtitle="What happens after you find an event you like" />
           <div className="grid grid-3">
