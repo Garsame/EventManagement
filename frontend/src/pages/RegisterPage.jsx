@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import client from "../api/client.js";
 import Card from "../components/ui/Card.jsx";
@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
   return (
     <PublicLayout>
-      <div className="container page" style={{ maxWidth: 460 }}>
+      <div className="shell-wrap page" style={{ maxWidth: 460 }}>
         <PageHeader title="Join the platform" subtitle="Register to access events and media" />
         <Card>
           <form onSubmit={handleSubmit}>

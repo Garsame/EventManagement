@@ -109,12 +109,12 @@ export default function DashboardEventsPage() {
                 </div>
 
                 <div className="flex gap-2 flex-wrap mt-4">
-                  <Link to={`/events/${item.event.id}/registration`} className="btn btn-ghost">
+                  <Link to={`/dashboard/events/${item.event.id}/registration`} className="btn btn-ghost">
                     QR code
                   </Link>
-                  <Link to={`/events/${item.event.id}`} className="btn btn-ghost">Event details</Link>
+                  <Link to={`/dashboard/events/${item.event.id}`} className="btn btn-ghost">Event details</Link>
                   {item.stage === "gallery-ready" ? (
-                    <Link to={`/events/${item.event.id}/gallery`} className="btn btn-primary">
+                    <Link to={`/dashboard/events/${item.event.id}/gallery`} className="btn btn-primary">
                       View gallery ({item.mediaCount})
                     </Link>
                   ) : (

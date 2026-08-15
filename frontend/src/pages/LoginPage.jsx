@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import Card from "../components/ui/Card.jsx";
 import Input from "../components/ui/Input.jsx";
@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <PublicLayout>
-      <div className="container page" style={{ maxWidth: 460 }}>
+      <div className="shell-wrap page" style={{ maxWidth: 460 }}>
         <PageHeader title="Welcome back" subtitle="Access your event workspace" />
         <Card>
           <form onSubmit={handleSubmit}>

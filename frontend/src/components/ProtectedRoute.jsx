@@ -21,7 +21,7 @@ export default function ProtectedRoute({ children, roles }) {
   if (loading && !user) {
     return (
       <PublicLayout>
-        <div className="container page">
+        <div className="shell-wrap page">
           <Loading />
         </div>
       </PublicLayout>
@@ -31,7 +31,7 @@ export default function ProtectedRoute({ children, roles }) {
   if (roles && roles.length > 0 && (!user || !roles.includes(user.role))) {
     return (
       <PublicLayout>
-        <div className="container page">
+        <div className="shell-wrap page">
           <Card>
             <Alert variant="error">Access restricted. You don't have permission to view this page.</Alert>
           </Card>

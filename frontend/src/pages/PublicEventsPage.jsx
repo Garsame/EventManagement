@@ -41,7 +41,7 @@ export default function PublicEventsPage() {
     <PublicLayout>
       <Hero />
 
-      <div className="container">
+      <div className="shell-wrap">
         <div className="section">
           <SectionHeader
             title="Why EventMedia"

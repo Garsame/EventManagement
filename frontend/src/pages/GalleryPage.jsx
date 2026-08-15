@@ -1,86 +1,126 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import client from "../api/client.js";
 import Card from "../components/ui/Card.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import Loading from "../components/ui/Loading.jsx";
 import EmptyState from "../components/ui/EmptyState.jsx";
-import PageHeader from "../components/ui/PageHeader.jsx";
-import PublicLayout from "../components/layout/PublicLayout.jsx";
+import SectionLayout, { useEventBase } from "../components/layout/SectionLayout.jsx";
 
 export default function GalleryPage() {
   const { eventId } = useParams();
+  const base = useEventBase();
   const [state, setState] = useState({ loading: true, error: "", code: null, unlocked: false, media: [] });
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await client.get(`/api/events/${eventId}/gallery`);
-        setState({ loading: false, error: "", code: null, unlocked: true, media: res.data.media || [] });
-      } catch (err) {
-        const code = err.response?.data?.error?.code;
-        const msg = err.response?.data?.error?.message || "Unable to load gallery";
-        setState({ loading: false, error: msg, code, unlocked: false, media: [] });
-      }
-    };
-    load();
+    client
+      .get(`/api/events/${eventId}/gallery`)
+      .then((res) => setState({ loading: false, error: "", code: null, unlocked: true, media: res.data.media || [] }))
+      .catch((err) =>
+        setState({
+          loading: false,
+          error: err.response?.data?.error?.message || "Unable to load gallery",
+          code: err.response?.data?.error?.code,
+          unlocked: false,
+          media: [],
+        })
+      );
   }, [eventId]);
+
+  // Escape closes the preview.
+  useEffect(() => {
+    if (!preview) return undefined;
+    const onKey = (e) => e.key === "Escape" && setPreview(null);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [preview]);
 
   const locked = !state.unlocked;
 
   return (
-    <PublicLayout>
-      <div className="container page">
-        <PageHeader title="Event Gallery" subtitle="Media available after check-in" />
-        {state.loading && <Loading />}
-        {!state.loading && locked && (
-          <Card>
-            {state.code === "NOT_REGISTERED" && (
-              <EmptyState
-                title="Register first"
-                description="Sign up for this event to unlock its gallery."
-                action={<Link className="btn btn-primary" to={`/events/${eventId}`}>Go to event</Link>}
-              />
-            )}
-            {state.code === "NOT_ATTENDED" && (
-              <EmptyState
-                title="Check-in required"
-                description="You must be checked in at the event to view media."
-                action={<Link className="btn btn-secondary" to={`/events/${eventId}`}>View event info</Link>}
-              />
-            )}
-            {!state.code && state.error && <Alert variant="error">{state.error}</Alert>}
-            {!state.code && !state.error && <Loading />}
-          </Card>
-        )}
+    <SectionLayout title="Event Gallery" subtitle="Media available after check-in">
+      {state.loading && <Loading />}
 
-        {!state.loading && state.unlocked && state.media.length === 0 && (
-          <Card>
-            <EmptyState title="No media yet" description="Photos and videos from this event will appear here once uploaded." />
-          </Card>
-        )}
+      {!state.loading && locked && (
+        <Card>
+          {state.code === "NOT_REGISTERED" && (
+            <EmptyState
+              title="Register first"
+              description="Sign up for this event to unlock its gallery."
+              action={<Link className="btn btn-primary" to={`${base}/${eventId}`}>Go to event</Link>}
+            />
+          )}
+          {state.code === "NOT_ATTENDED" && (
+            <EmptyState
+              title="Check-in required"
+              description="You must be checked in at the event to view media."
+              action={<Link className="btn btn-secondary" to={`${base}/${eventId}`}>View event info</Link>}
+            />
+          )}
+          {!state.code && state.error && <Alert variant="error">{state.error}</Alert>}
+        </Card>
+      )}
 
-        {!state.loading && state.unlocked && state.media.length > 0 && (
-          <div className="grid grid-3">
-            {state.media.map((m) => (
-              <Card key={m.id} style={{ textAlign: "center" }}>
+      {!state.loading && state.unlocked && state.media.length === 0 && (
+        <Card>
+          <EmptyState title="No media yet" description="Photos and videos from this event will appear here once uploaded." />
+        </Card>
+      )}
+
+      {!state.loading && state.unlocked && state.media.length > 0 && (
+        <>
+          <p className="text-muted mb-3">{state.media.length} item(s)</p>
+          <div className="gallery-grid">
+            {state.media.map((m, i) => (
+              <button
+                key={m.id}
+                type="button"
+                className="gallery-tile"
+                onClick={() => setPreview(m)}
+                title={m.caption || "Open"}
+              >
                 {m.type === "video" ? (
-                  <video src={m.url} poster={m.thumbnailUrl} controls style={{ width: "100%", borderRadius: 8 }} />
+                  <video src={m.url} poster={m.thumbnailUrl} muted />
                 ) : (
-                  <a href={m.url} target="_blank" rel="noreferrer">
-                    <img src={m.thumbnailUrl} alt={m.caption || "Event media"} style={{ width: "100%", borderRadius: 8 }} />
-                  </a>
+                  <img
+                    src={m.thumbnailUrl}
+                    alt={m.caption || "Event media"}
+                    /* First two rows are on screen at load; only defer the rest. */
+                    loading={i < 8 ? "eager" : "lazy"}
+                  />
                 )}
-                {m.caption && <p className="text-muted" style={{ marginTop: "0.5rem" }}>{m.caption}</p>}
-              </Card>
+                {m.caption && <span className="gallery-caption">{m.caption}</span>}
+              </button>
             ))}
           </div>
-        )}
+        </>
+      )}
 
-        <p style={{ marginTop: "1rem" }}>
-          <Link to={`/events/${eventId}`}>Back to event details</Link>
-        </p>
-      </div>
-    </PublicLayout>
+      <p className="mt-6 mb-0">
+        <Link to={`${base}/${eventId}`} className="btn btn-ghost">← Back to event details</Link>
+      </p>
+
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+          onClick={() => setPreview(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="max-w-4xl w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+            {preview.type === "video" ? (
+              <video src={preview.url} controls autoPlay className="w-full max-h-[80vh] rounded-xl" />
+            ) : (
+              <img src={preview.url} alt={preview.caption || "Event media"} className="w-full max-h-[80vh] object-contain rounded-xl" />
+            )}
+            <div className="flex items-center justify-between gap-3 mt-3">
+              <p className="text-white text-sm m-0 truncate">{preview.caption}</p>
+              <button type="button" className="btn btn-ghost" onClick={() => setPreview(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </SectionLayout>
   );
 }

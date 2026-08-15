@@ -115,7 +115,7 @@ export default function DashboardOverviewPage() {
 
             {!nextUp && (
               <div className="empty-state">
-                <div className="empty-icon">🎟️</div>
+                <div className="empty-icon">&#127903;&#65039;</div>
                 <p className="m-0">You have no upcoming events.</p>
                 <Link to="/events" className="btn btn-primary mt-4">Browse events</Link>
               </div>
@@ -140,10 +140,10 @@ export default function DashboardOverviewPage() {
                 </div>
 
                 <div className="flex gap-2 flex-wrap mt-5">
-                  <Link to={`/events/${nextUp.event.id}/registration`} className="btn btn-primary">
+                  <Link to={`/dashboard/events/${nextUp.event.id}/registration`} className="btn btn-primary">
                     Show my QR code
                   </Link>
-                  <Link to={`/events/${nextUp.event.id}`} className="btn btn-ghost">Event details</Link>
+                  <Link to={`/dashboard/events/${nextUp.event.id}`} className="btn btn-ghost">Event details</Link>
                 </div>
               </Card>
             )}
@@ -153,3 +153,4 @@ export default function DashboardOverviewPage() {
     </DashboardLayout>
   );
 }
+

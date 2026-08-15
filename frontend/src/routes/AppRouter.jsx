@@ -72,6 +72,32 @@ export default function AppRouter() {
           </ProtectedRoute>
         }
       />
+      {/* Same pages, kept inside the dashboard shell so opening an event from
+          the dashboard does not throw the user back out to the public site. */}
+      <Route
+        path="/dashboard/events/:eventId"
+        element={
+          <ProtectedRoute>
+            <EventDetailsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/events/:eventId/registration"
+        element={
+          <ProtectedRoute>
+            <RegistrationStatusPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/events/:eventId/gallery"
+        element={
+          <ProtectedRoute>
+            <GalleryPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

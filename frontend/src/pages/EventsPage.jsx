@@ -41,7 +41,7 @@ export default function EventsPage() {
         image="https://picsum.photos/seed/eventmedia-events/900/700"
       />
 
-      <div className="container">
+      <div className="shell-wrap">
         <div className="section">
           <div className="max-w-md mb-8">
             <Input placeholder="Search by title or location" value={search} onChange={(e) => setSearch(e.target.value)} />

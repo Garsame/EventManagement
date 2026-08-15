@@ -23,6 +23,15 @@ const EDITABLE_FIELDS = [
   "bio",
 ];
 
+export const MIN_AGE_YEARS = 16;
+
+/** The most recent birth date that still satisfies the minimum age. */
+export const latestAllowedBirthDate = () => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE_YEARS);
+  return d;
+};
+
 const validate = (updates) => {
   if ("fullName" in updates && !String(updates.fullName || "").trim()) {
     return "Full name cannot be empty";
@@ -40,6 +49,9 @@ const validate = (updates) => {
     const dob = new Date(updates.dateOfBirth);
     if (Number.isNaN(dob.getTime())) return "dateOfBirth is not a valid date";
     if (dob > new Date()) return "dateOfBirth cannot be in the future";
+    if (dob > latestAllowedBirthDate()) return `You must be at least ${MIN_AGE_YEARS} years old`;
+    // Guards against obvious nonsense like a year of 1600.
+    if (dob < new Date("1900-01-01")) return "dateOfBirth is unrealistically early";
   }
   if (updates.bio && String(updates.bio).length > 500) {
     return "Bio must be 500 characters or fewer";
