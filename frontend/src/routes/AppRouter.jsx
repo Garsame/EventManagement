@@ -8,6 +8,7 @@ import RegisterPage from "../pages/RegisterPage.jsx";
 import GalleryPage from "../pages/GalleryPage.jsx";
 import AdminDashboardPage from "../pages/AdminDashboardPage.jsx";
 import AdminCheckInPage from "../pages/AdminCheckInPage.jsx";
+import AdminEventsPage from "../pages/AdminEventsPage.jsx";
 import PhotographerUploadPage from "../pages/PhotographerUploadPage.jsx";
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import RegistrationStatusPage from "../pages/RegistrationStatusPage.jsx";
@@ -106,6 +107,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute roles={["admin"]}>
             <AdminDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/events"
+        element={
+          <ProtectedRoute roles={["admin", "photographer"]}>
+            <AdminEventsPage />
           </ProtectedRoute>
         }
       />
