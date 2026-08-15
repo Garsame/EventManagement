@@ -28,9 +28,14 @@
 
 @layer base {
   html, body {
-    /* Nothing may push the page wider than the window; a stray wide child
-       scrolls inside its own container instead of shifting the whole layout. */
-    @apply overflow-x-hidden max-w-full;
+    /* max-w-full alone stops content from pushing the page wider than the
+       window. overflow-x: hidden used to sit here too, but setting overflow
+       on one axis forces the browser to compute the other as auto rather
+       than visible - that silently turns html/body into a scroll container,
+       which breaks position: sticky for every sticky element in the app
+       (it starts tracking scroll instead of pinning to the viewport). The
+       real fix for wide content is .shell-wrap's max-width, not this. */
+    @apply max-w-full;
   }
   body {
     @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
@@ -55,7 +60,10 @@
 @layer components {
   /* Layout. Every section uses this one container, so page content lines up
      with the navbar logo instead of drifting to the window edge. */
-  .app-shell { @apply min-h-screen flex flex-col w-full max-w-full overflow-x-hidden; }
+  /* No overflow-x-hidden here either - same reasoning as html/body above.
+     The navbar's position: sticky needs .app-shell to stay a plain, non-
+     scrolling ancestor. */
+  .app-shell { @apply min-h-screen flex flex-col w-full max-w-full; }
   .shell-wrap { @apply w-full max-w-6xl mx-auto px-5 sm:px-6 min-w-0; }
   .page { @apply mt-8 pb-16; }
   .section { @apply mt-16 first:mt-0; }
@@ -186,9 +194,6 @@
            transition-colors hover:bg-slate-100 hover:text-slate-900
            dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white;
   }
-
-  /* Footer */
-  .footer { @apply mt-20 border-t border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800; }
 
   /* Admin / dashboard shell. Stacks below sm so the sidebar and content are not
      fighting over a phone-width viewport; min-w-0 lets the content column
