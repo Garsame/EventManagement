@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import client from "../api/client.js";
-import { getAccessToken } from "../api/tokenStore.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import Card from "../components/ui/Card.jsx";
 import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
@@ -12,29 +12,18 @@ import PublicLayout from "../components/layout/PublicLayout.jsx";
 
 const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
-const parseUser = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem("ems_user");
-    if (!stored) return null;
-    return JSON.parse(stored);
-  } catch (e) {
-    return null;
-  }
-};
-
 export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { user, isAuthed, isStaff, profileComplete } = useAuth();
   const [event, setEvent] = useState(null);
   const [registration, setRegistration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regLoading, setRegLoading] = useState(false);
   const [error, setError] = useState("");
   const [regError, setRegError] = useState("");
-  const isAuthed = !!getAccessToken();
-  const user = parseUser();
-  const canManageMedia = isAuthed && (user?.role === "admin" || user?.role === "photographer");
+  const [profileBlocked, setProfileBlocked] = useState(false);
+  const canManageMedia = isAuthed && isStaff;
 
   useEffect(() => {
     const load = async () => {
@@ -70,15 +59,22 @@ export default function EventDetailsPage() {
     }
     setRegLoading(true);
     setRegError("");
+    setProfileBlocked(false);
     try {
       const res = await client.post(`/api/events/${eventId}/register`);
       setRegistration(res.data.registration);
     } catch (err) {
+      const code = err.response?.data?.error?.code;
+      if (code === "PROFILE_INCOMPLETE") setProfileBlocked(true);
       setRegError(err.response?.data?.error?.message || "Registration failed");
     } finally {
       setRegLoading(false);
     }
   };
+
+  // Known before submitting, so the guest is told up front rather than after
+  // a failed attempt.
+  const blockedByProfile = isAuthed && !profileComplete;
 
   return (
     <PublicLayout>
@@ -117,9 +113,21 @@ export default function EventDetailsPage() {
               <div className="card-muted" style={{ marginTop: "1rem" }}>
                 Gallery unlocks after you are checked-in by the event team.
               </div>
+
+              {blockedByProfile && !registration && (
+                <Alert variant="warn" style={{ marginTop: "1rem" }}>
+                  Complete your profile before registering.{" "}
+                  {user?.missingProfileFields?.length > 0 && (
+                    <>Still needed: <strong>{user.missingProfileFields.join(", ")}</strong>. </>
+                  )}
+                  <Link to="/dashboard/profile" className="underline font-bold">
+                    Go to profile
+                  </Link>
+                </Alert>
+              )}
               <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
                 {!registration && (
-                  <Button onClick={handleRegister} disabled={regLoading}>
+                  <Button onClick={handleRegister} disabled={regLoading || blockedByProfile}>
                     {regLoading ? "Registering..." : "Register for this event"}
                   </Button>
                 )}
@@ -151,7 +159,9 @@ export default function EventDetailsPage() {
                   </Button>
                 )}
               </div>
-              {regError && <Alert variant="error" style={{ marginTop: "0.75rem" }}>{regError}</Alert>}
+              {regError && !profileBlocked && (
+                <Alert variant="error" style={{ marginTop: "0.75rem" }}>{regError}</Alert>
+              )}
             </Card>
           </div>
         )}

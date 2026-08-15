@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import User, { toUserDTO } from "../models/User.js";
 import { signAccessToken, signRefreshToken } from "../utils/token.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
@@ -35,14 +35,7 @@ export const register = async (req, res, next) => {
       refreshTokens: [],
     });
 
-    return res.status(201).json({
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    return res.status(201).json({ user: toUserDTO(user.toObject()) });
   } catch (err) {
     return next(err);
   }
@@ -72,12 +65,7 @@ export const login = async (req, res, next) => {
     await user.save();
 
     return res.json({
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-      },
+      user: toUserDTO(user.toObject()),
       accessToken,
       refreshToken,
     });

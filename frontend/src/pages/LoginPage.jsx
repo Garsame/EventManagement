@@ -1,16 +1,17 @@
 ﻿import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import client from "../api/client.js";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import Card from "../components/ui/Card.jsx";
 import Input from "../components/ui/Input.jsx";
 import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
-import * as tokenStore from "../api/tokenStore.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,12 +25,12 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await client.post("/api/auth/login", form);
-      tokenStore.setAccessToken(res.data.accessToken);
-      tokenStore.setRefreshToken(res.data.refreshToken);
-      window.localStorage.setItem("ems_user", JSON.stringify(res.data.user));
-      window.dispatchEvent(new Event("authchange"));
-      navigate("/");
+      const user = await login(form.email, form.password);
+      // Send them back where they were headed, otherwise into the dashboard -
+      // or straight to the profile if it still needs filling in.
+      const from = location.state?.from;
+      if (from) navigate(from, { replace: true });
+      else navigate(user.profileComplete ? "/dashboard" : "/dashboard/profile", { replace: true });
     } catch (err) {
       const message = err.response?.data?.error?.message || "Login failed";
       setError(message);

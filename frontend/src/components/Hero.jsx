@@ -87,7 +87,7 @@ export default function Hero() {
     <section className="pt-8 sm:pt-14">
       <div className="text-center max-w-3xl mx-auto px-4">
         <span className="badge badge-info mb-5">Registration · Check-in · Private galleries</span>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] text-slate-900">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] text-slate-900 dark:text-white">
           Every event, captured — <span className="text-brand-600">shared only</span> with the people who were there.
         </h1>
         <p className="mt-6 text-lg text-slate-600 max-w-xl mx-auto">

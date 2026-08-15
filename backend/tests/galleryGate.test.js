@@ -25,7 +25,17 @@ const { default: EventRegistration } = await import("../src/models/EventRegistra
 const { signAccessToken } = await import("../src/utils/token.js");
 const { uploadsDir } = await import("../src/config/storage.js");
 
-const makeUser = async (role, email) => {
+// Registration requires a complete profile, so fixtures carry one unless a
+// test is specifically exercising the incomplete case.
+const COMPLETE_PROFILE = {
+  phone: "+252 61 000 0000",
+  location: "Mogadishu, Somalia",
+  institution: "Test University",
+  educationLevel: "bachelors",
+  sex: "prefer-not-to-say",
+};
+
+const makeUser = async (role, email, overrides = {}) => {
   const user = await User.create({
     fullName: `Test ${role}`,
     email,
@@ -33,6 +43,8 @@ const makeUser = async (role, email) => {
     passwordHash: "not-used-in-tests",
     role,
     refreshTokens: [],
+    ...COMPLETE_PROFILE,
+    ...overrides,
   });
   return {
     user,
@@ -44,6 +56,7 @@ let admin;
 let photographer;
 let attendee;
 let outsider;
+let incomplete;
 let event;
 
 before(async () => {
@@ -63,6 +76,13 @@ before(async () => {
   photographer = await makeUser("photographer", "photographer@test.local");
   attendee = await makeUser("attendee", "attendee@test.local");
   outsider = await makeUser("attendee", "outsider@test.local");
+  incomplete = await makeUser("attendee", "incomplete@test.local", {
+    phone: "",
+    location: "",
+    institution: "",
+    educationLevel: "",
+    sex: "",
+  });
 
   event = await Event.create({
     title: "Gate Test Event",
@@ -137,6 +157,77 @@ describe("role enforcement", () => {
       .set("Authorization", "Bearer not-a-real-token")
       .expect(401);
     assert.equal(res.body.error.code, "INVALID_TOKEN");
+  });
+});
+
+describe("profile gate on registration", () => {
+  test("blocks registration while required profile fields are missing", async () => {
+    const res = await request(app)
+      .post(`/api/events/${event._id}/register`)
+      .set("Authorization", `Bearer ${incomplete.token}`)
+      .expect(403);
+
+    assert.equal(res.body.error.code, "PROFILE_INCOMPLETE");
+    assert.deepEqual(res.body.error.missingProfileFields.sort(), [
+      "educationLevel",
+      "institution",
+      "location",
+      "phone",
+      "sex",
+    ]);
+  });
+
+  test("reports the profile as incomplete on /users/me", async () => {
+    const res = await request(app)
+      .get("/api/users/me")
+      .set("Authorization", `Bearer ${incomplete.token}`)
+      .expect(200);
+    assert.equal(res.body.user.profileComplete, false);
+    assert.equal(res.body.user.missingProfileFields.length, 5);
+    // Initials back the avatar fallback when no image is uploaded.
+    assert.ok(res.body.user.initials.length > 0);
+  });
+
+  test("rejects an invalid education level", async () => {
+    await request(app)
+      .patch("/api/users/me")
+      .set("Authorization", `Bearer ${incomplete.token}`)
+      .send({ educationLevel: "wizardry" })
+      .expect(400);
+  });
+
+  test("never returns the password hash or refresh tokens", async () => {
+    const res = await request(app)
+      .get("/api/users/me")
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(200);
+    assert.equal(res.body.user.passwordHash, undefined);
+    assert.equal(res.body.user.refreshTokens, undefined);
+  });
+
+  test("allows registration once the profile is filled in", async () => {
+    await request(app)
+      .patch("/api/users/me")
+      .set("Authorization", `Bearer ${incomplete.token}`)
+      .send({
+        phone: "+252 61 111 2222",
+        location: "Hargeisa, Somalia",
+        institution: "Another University",
+        educationLevel: "diploma",
+        sex: "female",
+      })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/events/${event._id}/register`)
+      .set("Authorization", `Bearer ${incomplete.token}`)
+      .expect(201);
+  });
+
+  test("requires authentication for the profile endpoints", async () => {
+    await request(app).get("/api/users/me").expect(401);
+    await request(app).patch("/api/users/me").send({ phone: "1" }).expect(401);
+    await request(app).get("/api/users/me/registrations").expect(401);
   });
 });
 

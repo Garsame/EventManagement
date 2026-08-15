@@ -83,7 +83,7 @@ export default function AdminCheckInPage() {
     <AdminLayout sidebar={<AdminSidebar />} topbar={topbar}>
       <Card>
         <div className="input-row">
-          <label className="font-semibold text-slate-700 text-sm" htmlFor="checkin-event">Event</label>
+          <label className="input-label" htmlFor="checkin-event">Event</label>
           <select
             id="checkin-event"
             className="input"

@@ -7,9 +7,11 @@ import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [form, setForm] = useState({ fullName: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,10 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await client.post("/api/auth/register", form);
-      navigate("/login");
+      // Signing up only collects three fields, so drop them straight into the
+      // profile they have to finish before they can register for anything.
+      await login(form.email, form.password);
+      navigate("/dashboard/profile", { replace: true });
     } catch (err) {
       const message = err.response?.data?.error?.message || "Registration failed";
       setError(message);
