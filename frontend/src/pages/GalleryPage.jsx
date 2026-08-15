@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import client from "../api/client.js";
 import Card from "../components/ui/Card.jsx";
@@ -12,6 +12,7 @@ export default function GalleryPage() {
   const base = useEventBase();
   const [state, setState] = useState({ loading: true, error: "", code: null, unlocked: false, media: [] });
   const [preview, setPreview] = useState(null);
+  const [tab, setTab] = useState("photos");
 
   useEffect(() => {
     client
@@ -37,6 +38,17 @@ export default function GalleryPage() {
   }, [preview]);
 
   const locked = !state.unlocked;
+  const counts = useMemo(
+    () => ({
+      photos: state.media.filter((m) => m.type !== "video").length,
+      videos: state.media.filter((m) => m.type === "video").length,
+    }),
+    [state.media]
+  );
+  const visibleMedia = useMemo(
+    () => state.media.filter((m) => (tab === "videos" ? m.type === "video" : m.type !== "video")),
+    [state.media, tab]
+  );
 
   return (
     <SectionLayout title="Event Gallery" subtitle="Media available after check-in">
@@ -70,9 +82,30 @@ export default function GalleryPage() {
 
       {!state.loading && state.unlocked && state.media.length > 0 && (
         <>
-          <p className="text-muted mb-3">{state.media.length} item(s)</p>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <p className="text-muted m-0">{state.media.length} item(s)</p>
+            <div className="flex gap-2">
+              {[{ key: "photos", label: "Photos" }, { key: "videos", label: "Videos" }].map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  className={`btn ${tab === t.key ? "btn-primary" : "btn-ghost"} !px-3 !py-2 text-xs`}
+                >
+                  {t.label} ({counts[t.key]})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {visibleMedia.length === 0 && (
+            <div className="empty-state mb-4">
+              <p className="m-0">No {tab} yet.</p>
+            </div>
+          )}
+
           <div className="gallery-grid">
-            {state.media.map((m, i) => (
+            {visibleMedia.map((m, i) => (
               <button
                 key={m.id}
                 type="button"

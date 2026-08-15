@@ -1,5 +1,10 @@
-const ACCESS_KEY = "ems_access_token";
-const REFRESH_KEY = "ems_refresh_token";
+// Prefixed so this can never collide with the admin/photographer realms'
+// own storage (see api/realm.js). Renamed from the original unprefixed
+// "ems_access_token"/"ems_refresh_token" - those legacy keys are now simply
+// never read, which also retires any token that had been placed there before
+// the realms were split apart.
+const ACCESS_KEY = "ems_public_access_token";
+const REFRESH_KEY = "ems_public_refresh_token";
 
 let accessTokenMemory = null;
 

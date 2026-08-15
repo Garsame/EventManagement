@@ -43,6 +43,7 @@ export default function AdminEventsConsolePage() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [changingEventId, setChangingEventId] = useState(null);
 
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState("");
@@ -51,12 +52,15 @@ export default function AdminEventsConsolePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Only active photographers can sign in and work an event, so the
+      // assignment picker only ever offers accounts that can actually pick
+      // up the job.
       const [ev, ph] = await Promise.all([
         adminClient.get("/api/admin/events"),
-        adminClient.get("/api/admin/events/photographers"),
+        adminClient.get("/api/admin/users", { params: { role: "photographer", status: "active" } }),
       ]);
       setEvents(ev.data.events);
-      setPhotographers(ph.data.photographers);
+      setPhotographers(ph.data.users);
       setError("");
     } catch (err) {
       setError(err.response?.data?.error?.message || "Could not load events");
@@ -153,18 +157,20 @@ export default function AdminEventsConsolePage() {
     }
   };
 
-  const togglePhotographer = async (event, photographerId) => {
-    const current = event.photographers.map((p) => p.id);
-    const next = current.includes(photographerId)
-      ? current.filter((id) => id !== photographerId)
-      : [...current, photographerId];
+  // Replaces whichever photographer is on the event with a single new one -
+  // "change" means swap, not add, so the event always has at most one
+  // assigned photographer at a time.
+  const setPrimaryPhotographer = async (event, photographerId) => {
     setBusyId(event._id);
     setError("");
     try {
-      const res = await adminClient.put(`/api/admin/events/${event._id}/photographers`, { photographerIds: next });
+      const res = await adminClient.put(`/api/admin/events/${event._id}/photographers`, {
+        photographerIds: [photographerId],
+      });
       setEvents((prev) => prev.map((e) => (e._id === event._id ? { ...e, photographers: res.data.photographers } : e)));
+      setChangingEventId(null);
     } catch (err) {
-      setError(err.response?.data?.error?.message || "Could not update assignments");
+      setError(err.response?.data?.error?.message || "Could not update the assignment");
     } finally {
       setBusyId(null);
     }
@@ -212,7 +218,11 @@ export default function AdminEventsConsolePage() {
 
       <div className="stack gap-4">
         {visible.map((event) => {
-          const assigned = event.photographers.map((p) => p.id);
+          // The assigned photographer, if any - shown first and prominently
+          // rather than as one checked chip among many.
+          const assignedPhotographer = event.photographers[0] || null;
+          const isChanging = changingEventId === event._id;
+          const pickable = photographers.filter((p) => p.id !== assignedPhotographer?.id);
           return (
             <Card key={event._id}>
               <div className="flex gap-4 flex-col sm:flex-row">
@@ -242,21 +252,51 @@ export default function AdminEventsConsolePage() {
                   </div>
 
                   <div className="mt-4">
-                    <div className="input-label mb-2">Assigned photographers</div>
-                    {photographers.length === 0 && <p className="helper-text m-0">No photographer accounts exist yet.</p>}
-                    <div className="flex gap-2 flex-wrap">
-                      {photographers.map((p) => {
-                        const on = assigned.includes(p.id);
-                        return (
-                          <button key={p.id} type="button" onClick={() => togglePhotographer(event, p.id)}
-                            disabled={busyId === event._id} className={`btn ${on ? "btn-primary" : "btn-ghost"} !px-3 !py-2`}>
-                            <Avatar user={{ ...p, initials: p.fullName?.[0] || "?" }} size="sm" />
-                            <span className="truncate max-w-[10rem]">{p.fullName}</span>
-                            <span aria-hidden="true">{on ? "✓" : "+"}</span>
-                          </button>
-                        );
-                      })}
+                    <div className="input-label mb-2">Photographer</div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {assignedPhotographer ? (
+                        <span className="card-muted !inline-flex items-center gap-2 !py-2 !px-3">
+                          <Avatar user={{ ...assignedPhotographer, initials: assignedPhotographer.fullName?.[0] || "?" }} size="sm" />
+                          <span className="font-semibold">{assignedPhotographer.fullName}</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted text-sm">No photographer assigned.</span>
+                      )}
+
+                      {isChanging ? (
+                        <>
+                          <select
+                            className="input !w-56"
+                            defaultValue=""
+                            disabled={busyId === event._id}
+                            onChange={(e) => {
+                              if (e.target.value) setPrimaryPhotographer(event, e.target.value);
+                            }}
+                          >
+                            <option value="" disabled>Choose a photographer…</option>
+                            {pickable.map((p) => (
+                              <option key={p.id} value={p.id}>{p.fullName}</option>
+                            ))}
+                          </select>
+                          <Button type="button" variant="ghost" onClick={() => setChangingEventId(null)} disabled={busyId === event._id}>
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setChangingEventId(event._id)}
+                          disabled={busyId === event._id || pickable.length === 0}
+                          title={pickable.length === 0 ? "No other active photographers available" : undefined}
+                        >
+                          {assignedPhotographer ? "Change photographer" : "Assign a photographer"}
+                        </Button>
+                      )}
                     </div>
+                    {photographers.length === 0 && (
+                      <p className="helper-text mt-2 mb-0">No active photographer accounts available.</p>
+                    )}
                   </div>
 
                   <div className="flex gap-2 flex-wrap mt-4">
