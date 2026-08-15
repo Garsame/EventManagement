@@ -74,12 +74,7 @@ export default function PublicLayout({ children }) {
                   <FooterLink to="/login">Sign in</FooterLink>
                 </>
               )}
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 shrink-0" aria-hidden="true" />
-                <a href={`mailto:${ORGANIZER_EMAIL}`} className="text-brand-300 hover:text-brand-200 transition-colors">
-                  Contact support
-                </a>
-              </li>
+              <FooterLink to="/contact">Contact support</FooterLink>
             </ul>
           </div>
 

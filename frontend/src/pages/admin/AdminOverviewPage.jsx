@@ -26,15 +26,21 @@ export default function AdminOverviewPage() {
   const [events, setEvents] = useState([]);
   const [userCounts, setUserCounts] = useState({ attendee: 0, photographer: 0, admin: 0 });
   const [inactiveCount, setInactiveCount] = useState(0);
+  const [openMessages, setOpenMessages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([adminClient.get("/api/admin/events"), adminClient.get("/api/admin/users")])
-      .then(([ev, us]) => {
+    Promise.all([
+      adminClient.get("/api/admin/events"),
+      adminClient.get("/api/admin/users"),
+      adminClient.get("/api/admin/messages", { params: { status: "open" } }),
+    ])
+      .then(([ev, us, msg]) => {
         setEvents(ev.data.events);
         setUserCounts(us.data.counts);
         setInactiveCount(us.data.users.filter((u) => !u.isActive).length);
+        setOpenMessages(msg.data.counts.open);
       })
       .catch((err) => setError(err.response?.data?.error?.message || "Could not load dashboard data"))
       .finally(() => setLoading(false));
@@ -70,8 +76,14 @@ export default function AdminOverviewPage() {
             <Stat label="Attendees" value={userCounts.attendee} hint={`${userCounts.photographer} photographers, ${userCounts.admin} admins`} />
           </div>
 
-          {(unassigned > 0 || inactiveCount > 0) && (
+          {(unassigned > 0 || inactiveCount > 0 || openMessages > 0) && (
             <div className="section stack gap-3">
+              {openMessages > 0 && (
+                <Alert variant="warn">
+                  {openMessages} contact message(s) awaiting a reply.{" "}
+                  <Link to="/maamul/messages" className="underline font-bold">View messages</Link>
+                </Alert>
+              )}
               {unassigned > 0 && (
                 <Alert variant="warn">
                   {unassigned} open event(s) have no photographer assigned.{" "}

@@ -29,3 +29,16 @@ export const checkInLimiter = rateLimit({
     "Too many check-in attempts. Please slow down and try again shortly."
   ),
 });
+
+// The public contact form has no auth to lean on, so it gets its own tight
+// limit against being used to spam an inbox.
+export const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: limitHandler(
+    "TOO_MANY_ATTEMPTS",
+    "Too many messages sent. Please try again in a few minutes."
+  ),
+});

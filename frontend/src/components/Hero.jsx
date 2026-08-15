@@ -84,34 +84,41 @@ function HeroScene() {
 
 export default function Hero() {
   return (
-    <section className="relative pt-8 sm:pt-14 overflow-hidden">
-      {/* Illustration sits behind the text as a background layer, clipped to
-          this section so it never adds scroll height of its own - the
-          artwork itself (HeroScene) is unchanged. pointer-events-none keeps
-          it from ever intercepting clicks on the buttons above it. */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
-        <div className="w-full max-w-5xl">
-          <HeroScene />
+    <section className="pt-8 sm:pt-14">
+      <div className="shell-wrap grid gap-10 lg:grid-cols-2 items-center">
+        <div className="text-center lg:text-left">
+          <span className="badge badge-info mb-5">Registration · Check-in · Private galleries</span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] text-slate-900 dark:text-white">
+            Every event, captured — <span className="text-brand-600">shared only</span> with the people who were there.
+          </h1>
+          <p className="mt-6 text-lg text-slate-600 dark:text-slate-300 max-w-xl mx-auto lg:mx-0">
+            Create your event, let guests register and check in, and unlock a private, secure photo &amp; video
+            gallery the moment they walk through the door. No public dumps, no strangers browsing your memories.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+            <Link to="/events" className="btn btn-primary text-base px-6 py-3.5">
+              Browse events
+            </Link>
+            <Link to="/how-it-works" className="btn btn-ghost text-base px-6 py-3.5">
+              How it works
+            </Link>
+          </div>
+        </div>
+
+        {/* Same treatment as PageHero's stock image elsewhere in the app -
+            fixed aspect ratio and object-cover, so it is always fully
+            contained rather than spilling past the section. */}
+        <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-900/10 aspect-[4/3]">
+          <img
+            src="https://picsum.photos/seed/eventmedia-home-hero/900/700"
+            alt=""
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
 
-      <div className="relative text-center max-w-3xl mx-auto px-4">
-        <span className="badge badge-info mb-5">Registration · Check-in · Private galleries</span>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] text-slate-900 dark:text-white">
-          Every event, captured — <span className="text-brand-600">shared only</span> with the people who were there.
-        </h1>
-        <p className="mt-6 text-lg text-slate-600 max-w-xl mx-auto">
-          Create your event, let guests register and check in, and unlock a private, secure photo &amp; video
-          gallery the moment they walk through the door. No public dumps, no strangers browsing your memories.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link to="/events" className="btn btn-primary text-base px-6 py-3.5">
-            Browse events
-          </Link>
-          <Link to="/how-it-works" className="btn btn-ghost text-base px-6 py-3.5">
-            How it works
-          </Link>
-        </div>
+      <div className="mt-4 sm:mt-6">
+        <HeroScene />
       </div>
     </section>
   );
