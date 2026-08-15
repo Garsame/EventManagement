@@ -1,8 +1,20 @@
 import Event from "../models/Event.js";
 import Media from "../models/Media.js";
-import cloudinary, { uploadBufferToCloudinary } from "../config/cloudinary.js";
+import cloudinary, { isCloudinaryConfigured, uploadBufferToCloudinary } from "../config/cloudinary.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
+
+// Without credentials the Cloudinary SDK throws "Must supply api_key", which
+// surfaces as a generic 500. Fail with something the UI can explain instead.
+const storageUnconfigured = (res) =>
+  res
+    .status(503)
+    .json(
+      formatError(
+        "MEDIA_STORAGE_UNCONFIGURED",
+        "Media storage is not configured yet. Add the Cloudinary credentials to backend/.env and restart the server."
+      )
+    );
 
 const toMediaDTO = (doc) => ({
   id: doc._id,
@@ -29,6 +41,8 @@ const buildThumbnailUrl = (result) => {
 
 export const uploadMedia = async (req, res, next) => {
   try {
+    if (!isCloudinaryConfigured) return storageUnconfigured(res);
+
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
     if (!event) {
@@ -73,6 +87,8 @@ export const listMediaForManagement = async (req, res, next) => {
 
 export const deleteMedia = async (req, res, next) => {
   try {
+    if (!isCloudinaryConfigured) return storageUnconfigured(res);
+
     const { mediaId } = req.params;
     const media = await Media.findById(mediaId);
     if (!media) {
