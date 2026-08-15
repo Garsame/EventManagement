@@ -1,16 +1,19 @@
 import { useState } from "react";
-import client from "../api/client.js";
+import defaultClient from "../api/client.js";
 import Card from "./ui/Card.jsx";
 import Input from "./ui/Input.jsx";
 import Button from "./ui/Button.jsx";
 import Alert from "./ui/Alert.jsx";
-import * as tokenStore from "../api/tokenStore.js";
+import * as defaultTokenStore from "../api/tokenStore.js";
 
 /**
  * Password change confirmed by a code emailed to the account address, so
  * knowing a stolen session alone is not enough to take the account over.
+ * `client` and `tokenStore` default to the public realm, but any realm
+ * (admin, photographer) can pass its own so the refreshed tokens land in the
+ * right isolated session rather than the public one.
  */
-export default function ChangePasswordCard({ email }) {
+export default function ChangePasswordCard({ email, client = defaultClient, tokenStore = defaultTokenStore }) {
   const [stage, setStage] = useState("idle"); // idle -> code
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -57,7 +60,6 @@ export default function ChangePasswordCard({ email }) {
     setError("");
     try {
       const res = await client.post("/api/auth/password/change", { code, newPassword });
-      // Changing the password revokes old refresh tokens, so adopt the new pair.
       tokenStore.setAccessToken(res.data.accessToken);
       tokenStore.setRefreshToken(res.data.refreshToken);
       setDone(true);

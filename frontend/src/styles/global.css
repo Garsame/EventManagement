@@ -244,6 +244,57 @@
   .stat-value { @apply text-2xl font-extrabold text-slate-900 dark:text-white; }
   .stat-label { @apply text-slate-500 text-sm dark:text-slate-400; }
 
+  /* ---- Admin console shell -------------------------------------------
+     A standalone application frame, deliberately unrelated to the public
+     site's navbar/footer: fixed logo, a full-height sidebar, and a topbar
+     carrying only the account menu and theme toggle. */
+  .console-shell { @apply min-h-screen flex bg-slate-100 dark:bg-slate-950; }
+
+  .console-sidebar {
+    @apply fixed inset-y-0 left-0 z-30 w-64 flex flex-col bg-slate-900 text-slate-200
+           transition-transform duration-200 -translate-x-full lg:translate-x-0;
+  }
+  .console-sidebar.is-open { @apply translate-x-0; }
+  .console-logo {
+    @apply flex items-center gap-2.5 px-5 h-16 shrink-0 font-extrabold text-white text-lg border-b border-white/10;
+  }
+  .console-nav { @apply flex-1 overflow-y-auto p-3 flex flex-col gap-1; }
+  .console-nav-group { @apply px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500 first:pt-1; }
+  .console-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-300
+           transition-colors hover:bg-white/5 hover:text-white;
+  }
+  .console-link.is-active { @apply bg-brand-600 text-white shadow-lg shadow-brand-900/40; }
+  .console-sidebar-footer { @apply p-3 border-t border-white/10; }
+
+  .console-main { @apply flex-1 min-w-0 flex flex-col lg:pl-64; }
+  .console-topbar {
+    @apply sticky top-0 z-20 h-16 flex items-center justify-between gap-3 px-4 sm:px-6
+           bg-white/90 backdrop-blur border-b border-slate-200
+           dark:bg-slate-900/90 dark:border-slate-800;
+  }
+  .console-body { @apply flex-1 p-4 sm:p-6 max-w-[1400px] w-full mx-auto; }
+
+  .console-overlay { @apply fixed inset-0 z-20 bg-slate-950/50 lg:hidden; }
+
+  /* Cover thumbnails on event cards */
+  .cover-thumb {
+    @apply w-full sm:w-40 aspect-video sm:aspect-square shrink-0 rounded-xl overflow-hidden
+           bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400
+           dark:bg-slate-800 dark:border-slate-700;
+  }
+  .cover-thumb img { @apply w-full h-full object-cover; }
+
+  /* Modal */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto
+           bg-slate-950/60 backdrop-blur-sm;
+  }
+  .modal-panel {
+    @apply w-full max-w-2xl my-8 sm:my-0 rounded-2xl bg-white p-6 shadow-2xl
+           dark:bg-slate-900 border border-slate-200 dark:border-slate-800;
+  }
+
   /* Progress meter (profile completeness) */
   .progress-track { @apply w-full h-2 rounded-full bg-slate-200 overflow-hidden dark:bg-slate-800; }
   .progress-fill { @apply h-full rounded-full bg-brand-600 transition-[width] duration-500 dark:bg-brand-400; }

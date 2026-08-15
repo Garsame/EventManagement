@@ -14,7 +14,7 @@ const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium
 export default function EventDetailsPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { user, isAuthed, isStaff, profileComplete } = useAuth();
+  const { user, isAuthed, profileComplete } = useAuth();
   const base = useEventBase();
   const [event, setEvent] = useState(null);
   const [registration, setRegistration] = useState(null);
@@ -23,7 +23,6 @@ export default function EventDetailsPage() {
   const [error, setError] = useState("");
   const [regError, setRegError] = useState("");
   const [profileBlocked, setProfileBlocked] = useState(false);
-  const canManageMedia = isAuthed && isStaff;
 
   useEffect(() => {
     const load = async () => {
@@ -75,6 +74,7 @@ export default function EventDetailsPage() {
   // Known before submitting, so the guest is told up front rather than after
   // a failed attempt.
   const blockedByProfile = isAuthed && !profileComplete;
+  const registrationOpen = event?.status ? event.status === "registration-open" : true;
 
   return (
     <SectionLayout
@@ -112,7 +112,14 @@ export default function EventDetailsPage() {
                 Gallery unlocks after you are checked-in by the event team.
               </div>
 
-              {blockedByProfile && !registration && (
+              {!registrationOpen && !registration && (
+                <Alert variant="info" style={{ marginTop: "1rem" }}>
+                  {event.status === "completed"
+                    ? "This event has finished, so registration is closed."
+                    : "Registration is not open for this event yet."}
+                </Alert>
+              )}
+              {registrationOpen && blockedByProfile && !registration && (
                 <Alert variant="warn" style={{ marginTop: "1rem" }}>
                   Complete your profile before registering.{" "}
                   {user?.missingProfileFields?.length > 0 && (
@@ -124,7 +131,7 @@ export default function EventDetailsPage() {
                 </Alert>
               )}
               <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-                {!registration && (
+                {!registration && registrationOpen && (
                   <Button onClick={handleRegister} disabled={regLoading || blockedByProfile}>
                     {regLoading ? "Registering..." : "Register for this event"}
                   </Button>
@@ -151,11 +158,6 @@ export default function EventDetailsPage() {
                 <Button variant="ghost" onClick={() => navigate(`${base}/${eventId}/registration`)}>
                   View Registration Status
                 </Button>
-                {canManageMedia && (
-                  <Button variant="ghost" onClick={() => navigate(`/events/${eventId}/media/manage`)}>
-                    Manage Media
-                  </Button>
-                )}
               </div>
               {regError && !profileBlocked && (
                 <Alert variant="error" style={{ marginTop: "0.75rem" }}>{regError}</Alert>

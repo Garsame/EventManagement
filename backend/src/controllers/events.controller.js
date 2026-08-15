@@ -4,7 +4,13 @@ const formatError = (code, message) => ({ error: { code, message } });
 
 export const listPublic = async (req, res, next) => {
   try {
-    const events = await Event.find({ published: true, visibility: "public" })
+    // Drafts stay hidden; open and completed public events are both listed so
+    // past events remain browsable.
+    const events = await Event.find({
+      published: true,
+      visibility: "public",
+      status: { $ne: "draft" },
+    })
       .sort({ startDateTime: 1 })
       .lean();
     return res.json(events);

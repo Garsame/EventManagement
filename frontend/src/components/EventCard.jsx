@@ -5,7 +5,8 @@ const formatDate = (value) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export default function EventCard({ event }) {
-  const coverUrl = `https://picsum.photos/seed/${event._id}/640/400`;
+  // Falls back to a placeholder until the admin uploads a real cover image.
+  const coverUrl = event.coverImageUrl || `https://picsum.photos/seed/${event._id}/640/400`;
 
   return (
     <Card className="p-0 overflow-hidden flex flex-col">
