@@ -123,11 +123,13 @@
   /* Footer */
   .footer { @apply mt-20 border-t border-slate-200 bg-white; }
 
-  /* Admin shell */
-  .sidebar { @apply w-56 bg-white border-r border-slate-200 min-h-screen p-4 sticky top-0; }
+  /* Admin shell. Stacks below sm so the sidebar and content are not fighting
+     over a phone-width viewport; min-w-0 lets the content column actually
+     shrink instead of forcing the page to scroll sideways. */
+  .sidebar { @apply w-full sm:w-56 bg-white border-b sm:border-b-0 sm:border-r border-slate-200 sm:min-h-screen p-4 sm:sticky sm:top-0; }
   .sidebar a { @apply block px-3 py-2.5 rounded-lg text-slate-700 font-medium hover:bg-slate-100; }
-  .admin-shell { @apply flex min-h-screen; }
-  .admin-content { @apply flex-1 p-6 max-w-5xl; }
+  .admin-shell { @apply flex flex-col sm:flex-row min-h-screen; }
+  .admin-content { @apply flex-1 min-w-0 p-4 sm:p-6 max-w-5xl; }
   .topbar { @apply flex items-center justify-between gap-4 mb-6 flex-wrap; }
 
   /* Stat cards */

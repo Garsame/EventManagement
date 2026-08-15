@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import client from "../api/client.js";
 import Card from "../components/ui/Card.jsx";
@@ -7,6 +7,7 @@ import Alert from "../components/ui/Alert.jsx";
 import Loading from "../components/ui/Loading.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
+import QrCode from "../components/QrCode.jsx";
 
 const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
@@ -30,28 +31,49 @@ export default function RegistrationStatusPage() {
     load();
   }, [eventId]);
 
+  const attended = registration?.attended;
+
   return (
     <PublicLayout>
       <div className="container page">
-        <PageHeader title="Registration Status" subtitle="Keep this code handy for check-in" />
+        <PageHeader title="Registration Status" subtitle="Show this QR code at the door to check in" />
         {loading && <Loading />}
         {error && <Alert variant="error">{error}</Alert>}
         {registration && (
-          <Card style={{ maxWidth: 520 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Card style={{ maxWidth: 560 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
               <div>
                 <div className="text-muted">Registration Code</div>
-                <h2 style={{ margin: 0 }}>{registration.registrationCode}</h2>
+                <h2 style={{ margin: 0, letterSpacing: "0.04em" }}>{registration.registrationCode}</h2>
               </div>
-              <Badge variant={registration.attended ? "success" : "warn"}>
-                {registration.attended ? "Attended" : "Not attended"}
+              <Badge variant={attended ? "success" : "warn"}>
+                {attended ? "Checked in" : "Not checked in"}
               </Badge>
             </div>
-            {registration.checkedInAt && <p className="text-muted">Checked in at {formatDate(registration.checkedInAt)}</p>}
-            <p className="text-muted">Event ID: {eventId}</p>
-            <Link to={`/events/${eventId}`} className="btn btn-ghost" style={{ marginTop: "0.75rem", display: "inline-block" }}>
-              Back to event
-            </Link>
+
+            <div style={{ display: "grid", placeItems: "center", gap: "0.75rem", margin: "1.25rem 0" }}>
+              <QrCode value={registration.qrToken} size={220} />
+              <p className="text-muted" style={{ margin: 0, textAlign: "center", maxWidth: 340 }}>
+                {attended
+                  ? "You are already checked in. Your gallery is unlocked."
+                  : "Staff will scan this at the event. Once you are checked in, the gallery unlocks."}
+              </p>
+            </div>
+
+            {registration.checkedInAt && (
+              <p className="text-muted">Checked in at {formatDate(registration.checkedInAt)}</p>
+            )}
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
+              <Link to={`/events/${eventId}`} className="btn btn-ghost">
+                Back to event
+              </Link>
+              {attended && (
+                <Link to={`/events/${eventId}/gallery`} className="btn btn-primary">
+                  View gallery
+                </Link>
+              )}
+            </div>
           </Card>
         )}
       </div>

@@ -86,10 +86,12 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {isAuthed ? (
             <>
+              {/* The brand plus this chip plus Logout overflows a 375px
+                  viewport, so the chip only appears once there is room. */}
               {user && (
-                <span className="nav-user">
+                <span className="nav-user hidden sm:inline-flex">
                   <span className="font-bold text-slate-900 capitalize">{user.role}</span>
-                  <span className="text-muted hidden sm:inline">{user.email}</span>
+                  <span className="text-muted hidden md:inline">{user.email}</span>
                 </span>
               )}
               <Button variant="ghost" onClick={handleLogout}>
