@@ -8,6 +8,7 @@ const ICONS = {
   attendee: <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" strokeLinejoin="round" />,
   camera: <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" strokeLinecap="round" strokeLinejoin="round" />,
   shield: <path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z" strokeLinecap="round" strokeLinejoin="round" />,
+  messages: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z" strokeLinecap="round" strokeLinejoin="round" />,
 };
 
 const NAV_GROUPS = [
@@ -18,6 +19,10 @@ const NAV_GROUPS = [
       { to: "/maamul/events", label: "Events", icon: ICONS.events },
       { to: "/maamul/checkin", label: "Check-in", icon: ICONS.checkin },
     ],
+  },
+  {
+    label: "Support",
+    items: [{ to: "/maamul/messages", label: "Messages", icon: ICONS.messages }],
   },
   {
     label: "Users",

@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import PublicEventsPage from "../pages/PublicEventsPage.jsx";
 import HowItWorksPage from "../pages/HowItWorksPage.jsx";
+import ContactPage from "../pages/ContactPage.jsx";
 import EventsPage from "../pages/EventsPage.jsx";
 import EventDetailsPage from "../pages/EventDetailsPage.jsx";
 import LoginPage from "../pages/LoginPage.jsx";
@@ -25,6 +26,7 @@ import AdminEventsConsolePage from "../pages/admin/AdminEventsConsolePage.jsx";
 import AdminCheckInConsolePage from "../pages/admin/AdminCheckInConsolePage.jsx";
 import AdminMediaManagePage from "../pages/admin/AdminMediaManagePage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage.jsx";
+import AdminMessagesPage from "../pages/admin/AdminMessagesPage.jsx";
 
 import PhotographerEventsPage from "../pages/photographer/PhotographerEventsPage.jsx";
 import PhotographerMediaManagePage from "../pages/photographer/PhotographerMediaManagePage.jsx";
@@ -44,6 +46,7 @@ export default function AppRouter() {
       <Route path="/" element={<PublicEventsPage />} />
       <Route path="/home" element={<PublicEventsPage />} />
       <Route path="/how-it-works" element={<HowItWorksPage />} />
+      <Route path="/contact" element={<ContactPage />} />
       <Route path="/events" element={<EventsPage />} />
       <Route path="/events/:eventId" element={<EventDetailsPage />} />
       <Route path="/events/:eventId/registration" element={<ProtectedRoute><RegistrationStatusPage /></ProtectedRoute>} />
@@ -71,6 +74,7 @@ export default function AppRouter() {
       <Route path="/maamul/events/:eventId/media" element={<AdminGuard><AdminMediaManagePage /></AdminGuard>} />
       <Route path="/maamul/checkin" element={<AdminGuard><AdminCheckInConsolePage /></AdminGuard>} />
       <Route path="/maamul/profile" element={<AdminGuard><AdminProfilePage /></AdminGuard>} />
+      <Route path="/maamul/messages" element={<AdminGuard><AdminMessagesPage /></AdminGuard>} />
 
       {/* ---- Photographer realm: sign-in only, accounts made by an admin ---- */}
       <Route path="/photographer/login" element={<PhotographerLoginPage />} />

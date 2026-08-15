@@ -11,9 +11,12 @@ process.env.MEDIA_STORAGE = "local";
 
 // Blank the SMTP settings so the suite never sends real email; the mailer then
 // returns the code as devCode instead, which is what the OTP tests read.
+// MANAGEMENT_EMAIL is blanked too so contact-form tests never trigger a real
+// notification email either.
 process.env.SMTP_HOST = "";
 process.env.SMTP_USER = "";
 process.env.SMTP_PASSWORD = "";
+process.env.MANAGEMENT_EMAIL = "";
 
 // Point at a throwaway database before anything opens a connection. config/db.js
 // honours MONGO_DB_NAME, so the developer's real data is never touched.
@@ -30,6 +33,7 @@ const { default: Event } = await import("../src/models/Event.js");
 const { default: EventRegistration } = await import("../src/models/EventRegistration.js");
 const { signAccessToken } = await import("../src/utils/token.js");
 const { uploadsDir } = await import("../src/config/storage.js");
+const { default: Message } = await import("../src/models/Message.js");
 
 // Registration requires a complete profile, so fixtures carry one unless a
 // test is specifically exercising the incomplete case.
@@ -920,5 +924,86 @@ describe("local media storage", () => {
       .set("Authorization", `Bearer ${attendee.token}`)
       .expect(200);
     assert.equal(res.body.media.length, 0);
+  });
+});
+
+describe("contact form and admin messages", () => {
+  test("rejects a missing field", async () => {
+    const res = await request(app)
+      .post("/api/contact")
+      .send({ name: "Test", email: "test@example.com" })
+      .expect(400);
+    assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+
+  test("rejects an invalid email", async () => {
+    await request(app)
+      .post("/api/contact")
+      .send({ name: "Test", email: "not-an-email", message: "hello" })
+      .expect(400);
+  });
+
+  test("anyone can submit without an account, and it lands in the admin list", async () => {
+    const res = await request(app)
+      .post("/api/contact")
+      .send({ name: "Curious Guest", email: "guest-contact@test.local", subject: "Question", message: "How do I register?" })
+      .expect(201);
+    assert.equal(res.body.message.status, "open");
+
+    await request(app)
+      .get("/api/admin/messages")
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(403);
+
+    const list = await request(app)
+      .get("/api/admin/messages")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+    assert.ok(list.body.messages.some((m) => m.email === "guest-contact@test.local"));
+    assert.ok(list.body.counts.open >= 1);
+  });
+
+  test("admin reply marks it replied and is emailed to the sender", async () => {
+    const created = await request(app)
+      .post("/api/contact")
+      .send({ name: "Reply Target", email: "reply-target@test.local", message: "Can I bring a plus one?" })
+      .expect(201);
+
+    const replied = await request(app)
+      .post(`/api/admin/messages/${created.body.message.id}/reply`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ reply: "Yes, one guest is fine as long as they also register." })
+      .expect(200);
+
+    assert.equal(replied.body.message.status, "replied");
+    assert.equal(replied.body.message.reply.body, "Yes, one guest is fine as long as they also register.");
+
+    const stored = await Message.findById(created.body.message.id).lean();
+    assert.equal(stored.status, "replied");
+    assert.equal(String(stored.reply.repliedBy), admin.user._id.toString());
+  });
+
+  test("a photographer cannot reply", async () => {
+    const created = await request(app)
+      .post("/api/contact")
+      .send({ name: "X", email: "photog-blocked@test.local", message: "hi" })
+      .expect(201);
+    await request(app)
+      .post(`/api/admin/messages/${created.body.message.id}/reply`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ reply: "nope" })
+      .expect(403);
+  });
+
+  test("replying requires a non-empty reply", async () => {
+    const created = await request(app)
+      .post("/api/contact")
+      .send({ name: "X", email: "empty-reply@test.local", message: "hi" })
+      .expect(201);
+    await request(app)
+      .post(`/api/admin/messages/${created.body.message.id}/reply`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ reply: "   " })
+      .expect(400);
   });
 });

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM } = process.env;
+const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, MANAGEMENT_EMAIL } = process.env;
 
 export const isMailConfigured = Boolean(SMTP_HOST && SMTP_USER && SMTP_PASSWORD);
 
@@ -118,4 +118,81 @@ export const sendAccountCredentialsEmail = async ({ to, fullName, password, role
   return { delivered: true };
 };
 
-export default { sendOtpEmail, sendAccountCredentialsEmail, isMailConfigured };
+export const isContactNotifyConfigured = Boolean(MANAGEMENT_EMAIL);
+
+/** Notifies the organizer inbox that a new contact message came in. */
+export const sendContactNotificationEmail = async ({ name, email, subject, body }) => {
+  if (!MANAGEMENT_EMAIL) return { delivered: false };
+
+  const html = `
+    <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a">
+      <h1 style="font-size:20px;margin:0 0 8px">New contact message</h1>
+      <p style="color:#475569;margin:0 0 20px">
+        From <strong>${escapeHtml(name)}</strong> &lt;${escapeHtml(email)}&gt;
+      </p>
+      ${subject ? `<p style="margin:0 0 12px"><strong>Subject:</strong> ${escapeHtml(subject)}</p>` : ""}
+      <div style="border:1px solid #e2e8f0;border-radius:14px;padding:18px;white-space:pre-wrap">${escapeHtml(body)}</div>
+      <p style="color:#94a3b8;font-size:12px;margin:20px 0 0">Reply from the Messages tab in the admin dashboard.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.info(`[dev] contact message from ${email}: ${body}`);
+    return { delivered: false };
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM || SMTP_USER,
+    to: MANAGEMENT_EMAIL,
+    replyTo: email,
+    subject: `[EventMedia contact] ${subject || "New message from " + name}`,
+    html,
+    text: `From: ${name} <${email}>\n\n${body}`,
+  });
+
+  return { delivered: true };
+};
+
+/**
+ * Sends an admin's reply back to whoever originally wrote in. replyTo is set
+ * to the organizer inbox, so if the guest hits "reply" in their own email
+ * client it lands back in the same place the admin is working from.
+ */
+export const sendContactReplyEmail = async ({ to, name, originalSubject, originalBody, reply }) => {
+  const subject = originalSubject ? `Re: ${originalSubject}` : "Re: your message to EventMedia";
+  const html = `
+    <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a">
+      <h1 style="font-size:20px;margin:0 0 16px">Reply from EventMedia</h1>
+      <p style="color:#475569;margin:0 0 4px">Hello ${escapeHtml(name)},</p>
+      <div style="white-space:pre-wrap;margin:16px 0">${escapeHtml(reply)}</div>
+      <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <p style="color:#94a3b8;font-size:12px;margin:0 0 8px">Your original message:</p>
+        <div style="color:#64748b;font-size:13px;white-space:pre-wrap;border-left:3px solid #e2e8f0;padding-left:12px">${escapeHtml(originalBody)}</div>
+      </div>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.info(`[dev] reply to ${to}: ${reply}`);
+    return { delivered: false };
+  }
+
+  await transporter.sendMail({
+    from: EMAIL_FROM || SMTP_USER,
+    to,
+    replyTo: MANAGEMENT_EMAIL || EMAIL_FROM || SMTP_USER,
+    subject,
+    html,
+    text: `${reply}\n\n---\nYour original message:\n${originalBody}`,
+  });
+
+  return { delivered: true };
+};
+
+export default {
+  sendOtpEmail,
+  sendAccountCredentialsEmail,
+  sendContactNotificationEmail,
+  sendContactReplyEmail,
+  isMailConfigured,
+};
