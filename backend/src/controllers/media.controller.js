@@ -1,4 +1,4 @@
-import Event from "../models/Event.js";
+import Event, { canManageEventMedia } from "../models/Event.js";
 import Media from "../models/Media.js";
 import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
 
@@ -13,6 +13,17 @@ const storageUnconfigured = (res) =>
       formatError(
         "MEDIA_STORAGE_UNCONFIGURED",
         "Media storage is set to cloudinary but has no credentials. Add them to backend/.env, or set MEDIA_STORAGE=local to store uploads on disk."
+      )
+    );
+
+// Admins cover every event; a photographer only the ones they are assigned to.
+const notAssigned = (res) =>
+  res
+    .status(403)
+    .json(
+      formatError(
+        "NOT_ASSIGNED",
+        "You are not assigned to this event. Ask an admin to add you to it."
       )
     );
 
@@ -36,6 +47,7 @@ export const uploadMedia = async (req, res, next) => {
     if (!event) {
       return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
     }
+    if (!canManageEventMedia(event, req.user)) return notAssigned(res);
     if (!req.file) {
       return res.status(400).json(formatError("VALIDATION_ERROR", "file is required"));
     }
@@ -67,6 +79,10 @@ export const uploadMedia = async (req, res, next) => {
 export const listMediaForManagement = async (req, res, next) => {
   try {
     const { eventId } = req.params;
+    const event = await Event.findById(eventId).lean();
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+    if (!canManageEventMedia(event, req.user)) return notAssigned(res);
+
     const media = await Media.find({ eventId }).sort({ createdAt: -1 }).lean();
     return res.json({ media: media.map(toMediaDTO) });
   } catch (err) {
@@ -78,7 +94,11 @@ export const deleteMedia = async (req, res, next) => {
   try {
     if (!isStorageReady) return storageUnconfigured(res);
 
-    const { mediaId } = req.params;
+    const { eventId, mediaId } = req.params;
+    const event = await Event.findById(eventId).lean();
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+    if (!canManageEventMedia(event, req.user)) return notAssigned(res);
+
     const media = await Media.findById(mediaId);
     if (!media) {
       return res.status(404).json(formatError("NOT_FOUND", "Media not found"));

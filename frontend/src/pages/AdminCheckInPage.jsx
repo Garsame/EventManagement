@@ -23,10 +23,12 @@ export default function AdminCheckInPage() {
   const lastScanRef = useRef({ token: "", at: 0 });
 
   useEffect(() => {
+    // The admin list includes drafts and private events, which the public
+    // endpoint omits - staff still need to check guests in to those.
     client
-      .get("/api/events/public")
-      .then((res) => setEvents(res.data || []))
-      .catch(() => setError("Could not load events. Enter an event ID manually."));
+      .get("/api/admin/events")
+      .then((res) => setEvents(res.data.events || []))
+      .catch(() => setError("Could not load events."));
   }, []);
 
   const submitCheckIn = useCallback(

@@ -1,115 +1,111 @@
-﻿import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import client from "../api/client.js";
 import Card from "../components/ui/Card.jsx";
-import Input from "../components/ui/Input.jsx";
-import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
+import Loading from "../components/ui/Loading.jsx";
+import Badge from "../components/ui/Badge.jsx";
 import SectionHeader from "../components/ui/SectionHeader.jsx";
 import StatCard from "../components/ui/StatCard.jsx";
 import AdminLayout from "../components/layout/AdminLayout.jsx";
 import AdminSidebar from "../components/layout/AdminSidebar.jsx";
-import { Link } from "react-router-dom";
 
-const initialForm = {
-  title: "",
-  description: "",
-  location: "",
-  startDateTime: "",
-  endDateTime: "",
-  visibility: "public",
-  published: true,
-};
+const formatDate = (v) =>
+  new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v));
 
 export default function AdminDashboardPage() {
-  const [form, setForm] = useState(initialForm);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [counts, setCounts] = useState({ events: 0, published: 0 });
 
   useEffect(() => {
-    const loadCounts = async () => {
-      try {
-        const res = await client.get("/api/events/public");
-        setCounts({ events: res.data.length, published: res.data.filter((e) => e.published).length });
-      } catch (e) {
-        // silent
-      }
-    };
-    loadCounts();
+    client
+      .get("/api/admin/events")
+      .then((res) => setEvents(res.data.events))
+      .catch((err) => setError(err.response?.data?.error?.message || "Could not load events"))
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-  };
+  const totals = events.reduce(
+    (acc, e) => ({
+      events: acc.events + 1,
+      published: acc.published + (e.published ? 1 : 0),
+      registrations: acc.registrations + e.registrationCount,
+      attended: acc.attended + e.attendedCount,
+      media: acc.media + e.mediaCount,
+      unassigned: acc.unassigned + (e.photographers.length === 0 ? 1 : 0),
+    }),
+    { events: 0, published: 0, registrations: 0, attended: 0, media: 0, unassigned: 0 }
+  );
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setMessage("");
-    try {
-      const payload = { ...form };
-      const res = await client.post("/api/admin/events", payload);
-      setMessage(`Event created: ${res.data.title}`);
-      setForm(initialForm);
-    } catch (err) {
-      const msg = err.response?.data?.error?.message || "Failed to create event";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const upcoming = [...events]
+    .filter((e) => new Date(e.endDateTime) >= new Date())
+    .sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime))
+    .slice(0, 5);
 
   const topbar = (
     <div className="topbar">
-      <SectionHeader title="Admin Dashboard" subtitle="Manage events, check-ins, and media gates" />
+      <SectionHeader title="Admin Dashboard" subtitle="Events, check-ins and media at a glance" />
+      <Link to="/admin/events" className="btn btn-primary">Manage events</Link>
     </div>
   );
 
   return (
     <AdminLayout sidebar={<AdminSidebar />} topbar={topbar}>
-      <div className="stat-grid">
-        <StatCard label="Public events" value={counts.events} hint="visible now" />
-        <StatCard label="Published" value={counts.published} hint="ready for guests" />
-        <StatCard label="Check-ins" value="—" hint="Coming soon" />
-      </div>
+      {loading && <Loading />}
+      {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="section">
-        <Card>
-          <h3 className="mt-0 mb-4 text-lg font-bold">Create Event</h3>
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            <Input label="Title" name="title" value={form.title} onChange={handleChange} required />
-            <Input label="Description" name="description" value={form.description} onChange={handleChange} />
-            <Input label="Location" name="location" value={form.location} onChange={handleChange} />
-            <div className="two-col">
-              <Input label="Start" type="datetime-local" name="startDateTime" value={form.startDateTime} onChange={handleChange} required />
-              <Input label="End" type="datetime-local" name="endDateTime" value={form.endDateTime} onChange={handleChange} required />
+      {!loading && !error && (
+        <>
+          <div className="stat-grid">
+            <StatCard label="Events" value={totals.events} hint={`${totals.published} published`} />
+            <StatCard label="Registrations" value={totals.registrations} hint={`${totals.attended} checked in`} />
+            <StatCard label="Media files" value={totals.media} hint="across all events" />
+          </div>
+
+          {totals.unassigned > 0 && (
+            <Alert variant="warn" className="mt-5">
+              {totals.unassigned} event(s) have no photographer assigned, so nobody can upload media for them.{" "}
+              <Link to="/admin/events" className="underline font-bold">Assign photographers</Link>
+            </Alert>
+          )}
+
+          <div className="section">
+            <div className="page-header mb-4">
+              <h3 className="text-lg font-bold m-0">Upcoming events</h3>
+              <Link to="/admin/events" className="btn btn-ghost">View all</Link>
             </div>
-            <div className="two-col">
-              <div className="input-row">
-                <label className="input-label">Visibility</label>
-                <select name="visibility" value={form.visibility} onChange={handleChange} className="input">
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-              </div>
-              <div className="input-row justify-end">
-                <label className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
-                  <input type="checkbox" name="published" checked={form.published} onChange={handleChange} className="w-4 h-4 accent-brand-600" />
-                  Published
-                </label>
-              </div>
+
+            {upcoming.length === 0 && (
+              <div className="empty-state"><p className="m-0">No upcoming events.</p></div>
+            )}
+
+            <div className="stack gap-3">
+              {upcoming.map((e) => (
+                <Card key={e._id}>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <h4 className="m-0 text-base font-bold">{e.title}</h4>
+                      <p className="text-muted m-0 mt-1 text-sm">
+                        {formatDate(e.startDateTime)} · {e.location || "Location TBA"}
+                      </p>
+                      <p className="text-muted m-0 mt-1 text-sm">
+                        {e.registrationCount} registered · {e.attendedCount} checked in · {e.mediaCount} media
+                      </p>
+                    </div>
+                    <div className="flex gap-2 items-center flex-wrap">
+                      {e.photographers.length === 0
+                        ? <Badge variant="warn">No photographer</Badge>
+                        : <Badge variant="success">{e.photographers.length} photographer(s)</Badge>}
+                      <Link to="/admin/events" className="btn btn-ghost">Manage</Link>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
-            {message && <Alert variant="success">{message} — <Link to="/">View on public list</Link></Alert>}
-            {error && <Alert variant="error">{error}</Alert>}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Create Event"}
-            </Button>
-          </form>
-        </Card>
-      </div>
+          </div>
+        </>
+      )}
     </AdminLayout>
   );
 }

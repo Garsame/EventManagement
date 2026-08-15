@@ -1,14 +1,11 @@
+import { forwardRef } from "react";
+
 const cx = (...classes) => classes.filter(Boolean).join(" ");
 
-export default function Input({
-  label,
-  error,
-  helper,
-  icon,
-  className = "",
-  inputClassName = "",
-  ...props
-}) {
+const Input = forwardRef(function Input(
+  { label, error, helper, icon, className = "", inputClassName = "", ...props },
+  ref
+) {
   return (
     <div className={cx("input-row", className)}>
       {label && (
@@ -18,10 +15,16 @@ export default function Input({
       )}
       <div className="input-wrapper">
         {icon && <span className="input-icon">{icon}</span>}
-        <input className={cx("input", icon && "with-icon", inputClassName, error && "input-error")} {...props} />
+        <input
+          ref={ref}
+          className={cx("input", icon && "with-icon", inputClassName, error && "input-error")}
+          {...props}
+        />
       </div>
       {helper && <div className="helper-text">{helper}</div>}
       {error && <div className="error-text">{error}</div>}
     </div>
   );
-}
+});
+
+export default Input;

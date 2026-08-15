@@ -9,6 +9,12 @@ dotenv.config();
 // Media tests exercise the on-disk driver, never a remote account.
 process.env.MEDIA_STORAGE = "local";
 
+// Blank the SMTP settings so the suite never sends real email; the mailer then
+// returns the code as devCode instead, which is what the OTP tests read.
+process.env.SMTP_HOST = "";
+process.env.SMTP_USER = "";
+process.env.SMTP_PASSWORD = "";
+
 // Point at a throwaway database before anything opens a connection. config/db.js
 // honours MONGO_DB_NAME, so the developer's real data is never touched.
 process.env.MONGO_DB_NAME = "event_media_test";
@@ -57,6 +63,7 @@ let photographer;
 let attendee;
 let outsider;
 let incomplete;
+let unassignedPhotographer;
 let event;
 
 before(async () => {
@@ -84,6 +91,8 @@ before(async () => {
     sex: "",
   });
 
+  unassignedPhotographer = await makeUser("photographer", "spare-photographer@test.local");
+
   event = await Event.create({
     title: "Gate Test Event",
     description: "Fixture",
@@ -93,6 +102,8 @@ before(async () => {
     visibility: "public",
     published: true,
     createdBy: admin.user._id,
+    // Media routes now require assignment, so the fixture photographer is on it.
+    photographers: [photographer.user._id],
   });
 });
 
@@ -319,6 +330,265 @@ describe("gallery gate", () => {
       .send({})
       .expect(400);
     assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+});
+
+describe("signup with an emailed code", () => {
+  const EMAIL = "otp-signup@test.local";
+
+  test("requesting a code does not create the account yet", async () => {
+    const res = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ fullName: "Code User", email: EMAIL, password: "Secret123" })
+      .expect(201);
+
+    assert.equal(res.body.email, EMAIL);
+    assert.ok(res.body.devCode, "dev code expected while SMTP is off");
+    assert.equal(await User.countDocuments({ email: EMAIL }), 0);
+  });
+
+  test("a wrong code is rejected and counts against the attempt limit", async () => {
+    const res = await request(app)
+      .post("/api/auth/signup/verify")
+      .send({ email: EMAIL, code: "000000" })
+      .expect(400);
+    assert.equal(res.body.error.code, "OTP_INVALID");
+    assert.ok(res.body.error.attemptsLeft < 5);
+    assert.equal(await User.countDocuments({ email: EMAIL }), 0);
+  });
+
+  test("cancelling discards the pending signup", async () => {
+    await request(app).post("/api/auth/signup/cancel").send({ email: EMAIL }).expect(200);
+    await request(app)
+      .post("/api/auth/signup/verify")
+      .send({ email: EMAIL, code: "123456" })
+      .expect(400);
+    assert.equal(await User.countDocuments({ email: EMAIL }), 0);
+  });
+
+  test("the correct code creates the account and signs them in", async () => {
+    const start = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ fullName: "Code User", email: EMAIL, password: "Secret123" })
+      .expect(201);
+
+    const res = await request(app)
+      .post("/api/auth/signup/verify")
+      .send({ email: EMAIL, code: start.body.devCode })
+      .expect(201);
+
+    assert.ok(res.body.accessToken && res.body.refreshToken, "should be signed in immediately");
+    assert.equal(res.body.user.email, EMAIL);
+    assert.equal(res.body.user.profileComplete, false);
+    assert.equal(await User.countDocuments({ email: EMAIL }), 1);
+
+    // The code is single use.
+    await request(app)
+      .post("/api/auth/signup/verify")
+      .send({ email: EMAIL, code: start.body.devCode })
+      .expect(400);
+
+    await User.deleteOne({ email: EMAIL });
+  });
+
+  test("refuses an address that is already registered", async () => {
+    const res = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ fullName: "Dup", email: "attendee@test.local", password: "Secret123" })
+      .expect(409);
+    assert.equal(res.body.error.code, "EMAIL_EXISTS");
+  });
+});
+
+describe("password change by emailed code", () => {
+  test("requires authentication", async () => {
+    await request(app).post("/api/auth/password/request-otp").expect(401);
+    await request(app).post("/api/auth/password/change").send({ code: "1", newPassword: "x" }).expect(401);
+  });
+
+  test("a wrong code does not change the password", async () => {
+    await request(app)
+      .post("/api/auth/password/request-otp")
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .expect(200);
+
+    const before = await User.findById(outsider.user._id).lean();
+    const res = await request(app)
+      .post("/api/auth/password/change")
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .send({ code: "000000", newPassword: "BrandNew123" })
+      .expect(400);
+
+    assert.equal(res.body.error.code, "OTP_INVALID");
+    const after = await User.findById(outsider.user._id).lean();
+    assert.equal(before.passwordHash, after.passwordHash);
+  });
+
+  test("the correct code sets the new password and revokes old sessions", async () => {
+    const start = await request(app)
+      .post("/api/auth/password/request-otp")
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .expect(200);
+
+    const before = await User.findById(outsider.user._id).lean();
+
+    const res = await request(app)
+      .post("/api/auth/password/change")
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .send({ code: start.body.devCode, newPassword: "BrandNew123" })
+      .expect(200);
+
+    assert.ok(res.body.accessToken, "a fresh session is returned");
+    const after = await User.findById(outsider.user._id).lean();
+    assert.notEqual(before.passwordHash, after.passwordHash);
+    // Only the newly issued refresh token should survive the change.
+    assert.equal(after.refreshTokens.length, 1);
+  });
+
+  test("rejects a password shorter than six characters", async () => {
+    await request(app)
+      .post("/api/auth/password/change")
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .send({ code: "123456", newPassword: "abc" })
+      .expect(400);
+  });
+});
+
+describe("photographer assignment", () => {
+  test("an unassigned photographer cannot list media", async () => {
+    const res = await request(app)
+      .get(`/api/events/${event._id}/media`)
+      .set("Authorization", `Bearer ${unassignedPhotographer.token}`)
+      .expect(403);
+    assert.equal(res.body.error.code, "NOT_ASSIGNED");
+  });
+
+  test("an unassigned photographer cannot upload", async () => {
+    const res = await request(app)
+      .post(`/api/events/${event._id}/media`)
+      .set("Authorization", `Bearer ${unassignedPhotographer.token}`)
+      .attach("file", Buffer.from("bytes"), "x.png")
+      .expect(403);
+    assert.equal(res.body.error.code, "NOT_ASSIGNED");
+  });
+
+  test("an assigned photographer can list media", async () => {
+    await request(app)
+      .get(`/api/events/${event._id}/media`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(200);
+  });
+
+  test("an admin can work any event without being assigned", async () => {
+    await request(app)
+      .get(`/api/events/${event._id}/media`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+  });
+
+  test("only an admin may change assignments", async () => {
+    await request(app)
+      .put(`/api/admin/events/${event._id}/photographers`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ photographerIds: [] })
+      .expect(403);
+  });
+
+  test("assignments must reference photographer accounts", async () => {
+    await request(app)
+      .put(`/api/admin/events/${event._id}/photographers`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ photographerIds: [attendee.user._id.toString()] })
+      .expect(400);
+  });
+
+  test("an admin can assign and unassign", async () => {
+    const add = await request(app)
+      .put(`/api/admin/events/${event._id}/photographers`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ photographerIds: [photographer.user._id.toString(), unassignedPhotographer.user._id.toString()] })
+      .expect(200);
+    assert.equal(add.body.photographers.length, 2);
+
+    // Put the fixture back so later tests see the original assignment.
+    const back = await request(app)
+      .put(`/api/admin/events/${event._id}/photographers`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ photographerIds: [photographer.user._id.toString()] })
+      .expect(200);
+    assert.equal(back.body.photographers.length, 1);
+  });
+});
+
+describe("admin event management", () => {
+  test("lists every event with counts, including drafts", async () => {
+    const draft = await Event.create({
+      title: "Hidden Draft",
+      startDateTime: new Date("2027-01-01T10:00:00Z"),
+      endDateTime: new Date("2027-01-01T12:00:00Z"),
+      published: false,
+      visibility: "private",
+      createdBy: admin.user._id,
+    });
+
+    const res = await request(app)
+      .get("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+
+    const titles = res.body.events.map((e) => e.title);
+    assert.ok(titles.includes("Hidden Draft"), "drafts must appear for admins");
+
+    const fixture = res.body.events.find((e) => e.title === "Gate Test Event");
+    assert.equal(typeof fixture.registrationCount, "number");
+    assert.equal(typeof fixture.mediaCount, "number");
+
+    await draft.deleteOne();
+  });
+
+  test("rejects an end date before the start date", async () => {
+    await request(app)
+      .post("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({
+        title: "Backwards",
+        startDateTime: "2027-02-05T10:00:00Z",
+        endDateTime: "2027-02-01T10:00:00Z",
+      })
+      .expect(400);
+  });
+
+  test("deleting an event removes its registrations and media rows", async () => {
+    const doomed = await Event.create({
+      title: "Doomed Event",
+      startDateTime: new Date("2027-03-01T10:00:00Z"),
+      endDateTime: new Date("2027-03-01T12:00:00Z"),
+      published: true,
+      visibility: "public",
+      createdBy: admin.user._id,
+      photographers: [photographer.user._id],
+    });
+
+    await request(app)
+      .post(`/api/events/${doomed._id}/register`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(201);
+
+    const res = await request(app)
+      .delete(`/api/admin/events/${doomed._id}`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+
+    assert.equal(res.body.deleted.registrations, 1);
+    assert.equal(await EventRegistration.countDocuments({ eventId: doomed._id }), 0);
+    assert.equal(await Event.countDocuments({ _id: doomed._id }), 0);
+  });
+
+  test("a photographer cannot delete an event", async () => {
+    await request(app)
+      .delete(`/api/admin/events/${event._id}`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(403);
   });
 });
 

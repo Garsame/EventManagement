@@ -6,6 +6,7 @@ import Input from "../components/ui/Input.jsx";
 import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import Avatar from "../components/Avatar.jsx";
+import ChangePasswordCard from "../components/ChangePasswordCard.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const EDUCATION_LEVELS = [
@@ -289,6 +290,8 @@ export default function DashboardProfilePage() {
             </Button>
           </form>
         </Card>
+
+        <ChangePasswordCard email={user?.email} />
 
         <Card>
           <h3 className="mt-0 mb-3 text-lg font-bold">Account</h3>
