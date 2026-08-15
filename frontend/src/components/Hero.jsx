@@ -84,8 +84,18 @@ function HeroScene() {
 
 export default function Hero() {
   return (
-    <section className="pt-8 sm:pt-14">
-      <div className="text-center max-w-3xl mx-auto px-4">
+    <section className="relative pt-8 sm:pt-14 overflow-hidden">
+      {/* Illustration sits behind the text as a background layer, clipped to
+          this section so it never adds scroll height of its own - the
+          artwork itself (HeroScene) is unchanged. pointer-events-none keeps
+          it from ever intercepting clicks on the buttons above it. */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+        <div className="w-full max-w-5xl">
+          <HeroScene />
+        </div>
+      </div>
+
+      <div className="relative text-center max-w-3xl mx-auto px-4">
         <span className="badge badge-info mb-5">Registration · Check-in · Private galleries</span>
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] text-slate-900 dark:text-white">
           Every event, captured — <span className="text-brand-600">shared only</span> with the people who were there.
@@ -102,9 +112,6 @@ export default function Hero() {
             How it works
           </Link>
         </div>
-      </div>
-      <div className="mt-4 sm:mt-6">
-        <HeroScene />
       </div>
     </section>
   );
