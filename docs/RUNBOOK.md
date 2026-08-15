@@ -36,8 +36,11 @@ The curl examples below use `:5099`; change it if your port differs.
 
 - Port in use: change `PORT` or `CORS_ORIGIN` in `.env`.
 - Mongo unreachable: confirm `mongod` service is running and `MONGO_URI` matches.
-- Upload returns 503 `MEDIA_STORAGE_UNCONFIGURED`: Cloudinary credentials are
-  missing from `backend/.env`. Add them and restart.
+- Upload returns 503 `MEDIA_STORAGE_UNCONFIGURED`: `MEDIA_STORAGE=cloudinary`
+  is set without credentials. Add them, or set `MEDIA_STORAGE=local`.
+- Uploaded images 404 or fail to load: `PUBLIC_BASE_URL` must match the port the
+  backend actually binds, because the browser loads them from a different origin
+  than the frontend.
 - Auth returns 429 `TOO_MANY_ATTEMPTS`: the rate limit is 30 requests per 15
   minutes per IP. The counter is in memory, so restarting the backend clears it.
 
@@ -51,8 +54,22 @@ The curl examples below use `:5099`; change it if your port differs.
 - `ACCESS_TOKEN_EXPIRES_IN` (e.g., 15m)
 - `REFRESH_TOKEN_EXPIRES_IN` (e.g., 7d)
 - `CORS_ORIGIN` (default http://localhost:5173)
-- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- `MEDIA_STORAGE` — `local` (default) or `cloudinary`
+- `PUBLIC_BASE_URL` — base URL for locally stored media links
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — only
+  when `MEDIA_STORAGE=cloudinary`
 - `MEDIA_MAX_FILE_SIZE_MB` (default 10)
+
+## Media Storage
+
+Uploads default to local disk (`backend/uploads`, gitignored), so no third-party
+account is needed — relevant because Cloudinary blocks signups from some
+countries. Files are served read-only from `/uploads` with random 32-character
+names.
+
+To switch to Cloudinary later, set `MEDIA_STORAGE=cloudinary` and fill in the
+three credentials. No code changes are required; both drivers implement the same
+interface in `src/config/storage.js`.
 
 ## Seeding
 

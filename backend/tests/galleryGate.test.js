@@ -1,8 +1,13 @@
 import test, { before, after, describe } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+// Media tests exercise the on-disk driver, never a remote account.
+process.env.MEDIA_STORAGE = "local";
 
 // Point at a throwaway database before anything opens a connection. config/db.js
 // honours MONGO_DB_NAME, so the developer's real data is never touched.
@@ -18,6 +23,7 @@ const { default: User } = await import("../src/models/User.js");
 const { default: Event } = await import("../src/models/Event.js");
 const { default: EventRegistration } = await import("../src/models/EventRegistration.js");
 const { signAccessToken } = await import("../src/utils/token.js");
+const { uploadsDir } = await import("../src/config/storage.js");
 
 const makeUser = async (role, email) => {
   const user = await User.create({
@@ -71,6 +77,8 @@ before(async () => {
 });
 
 after(async () => {
+  // Remove any files the media tests wrote for this fixture event.
+  await fs.rm(path.join(uploadsDir, String(event._id)), { recursive: true, force: true });
   await mongoose.connection.db.dropDatabase();
   await mongoose.disconnect();
 });
@@ -223,13 +231,64 @@ describe("gallery gate", () => {
   });
 });
 
-describe("media storage guard", () => {
-  test("reports unconfigured storage instead of a raw 500", async () => {
+describe("local media storage", () => {
+  let uploaded;
+
+  test("stores an upload on disk and returns a URL for it", async () => {
     const res = await request(app)
       .post(`/api/events/${event._id}/media`)
       .set("Authorization", `Bearer ${photographer.token}`)
-      .attach("file", Buffer.from("not-a-real-image"), "test.png")
-      .expect(503);
-    assert.equal(res.body.error.code, "MEDIA_STORAGE_UNCONFIGURED");
+      .attach("file", Buffer.from("pretend-png-bytes"), "shot.png")
+      .expect(201);
+
+    uploaded = res.body;
+    assert.equal(uploaded.type, "image");
+    assert.match(uploaded.url, /\/uploads\/.+\.png$/);
+
+    // publicId is not on the DTO, so locate the file through the URL.
+    const relative = uploaded.url.split("/uploads/")[1];
+    const stat = await fs.stat(path.join(uploadsDir, relative));
+    assert.ok(stat.size > 0, "expected the stored file to be non-empty");
+  });
+
+  test("rejects a file type that is not an image or video", async () => {
+    await request(app)
+      .post(`/api/events/${event._id}/media`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .attach("file", Buffer.from("#!/bin/sh"), { filename: "x.sh", contentType: "application/x-sh" })
+      .expect(400);
+  });
+
+  test("does not expose media through the gate to an unregistered guest", async () => {
+    const res = await request(app)
+      .get(`/api/events/${event._id}/gallery`)
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .expect(403);
+    assert.equal(res.body.error.code, "NOT_REGISTERED");
+  });
+
+  test("serves the media to the checked-in guest", async () => {
+    const res = await request(app)
+      .get(`/api/events/${event._id}/gallery`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(200);
+    assert.equal(res.body.media.length, 1);
+    assert.equal(res.body.media[0].url, uploaded.url);
+  });
+
+  test("deleting removes both the record and the file", async () => {
+    await request(app)
+      .delete(`/api/events/${event._id}/media/${uploaded.id}`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(200);
+
+    const relative = uploaded.url.split("/uploads/")[1];
+    await assert.rejects(fs.stat(path.join(uploadsDir, relative)), /ENOENT/);
+
+    const res = await request(app)
+      .get(`/api/events/${event._id}/gallery`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(200);
+    assert.equal(res.body.media.length, 0);
   });
 });

@@ -1,18 +1,18 @@
 import Event from "../models/Event.js";
 import Media from "../models/Media.js";
-import cloudinary, { isCloudinaryConfigured, uploadBufferToCloudinary } from "../config/cloudinary.js";
+import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
-// Without credentials the Cloudinary SDK throws "Must supply api_key", which
-// surfaces as a generic 500. Fail with something the UI can explain instead.
+// Only reachable when MEDIA_STORAGE=cloudinary without credentials. The default
+// local driver is always ready, so a fresh clone can upload immediately.
 const storageUnconfigured = (res) =>
   res
     .status(503)
     .json(
       formatError(
         "MEDIA_STORAGE_UNCONFIGURED",
-        "Media storage is not configured yet. Add the Cloudinary credentials to backend/.env and restart the server."
+        "Media storage is set to cloudinary but has no credentials. Add them to backend/.env, or set MEDIA_STORAGE=local to store uploads on disk."
       )
     );
 
@@ -27,21 +27,9 @@ const toMediaDTO = (doc) => ({
   createdAt: doc.createdAt,
 });
 
-const buildThumbnailUrl = (result) => {
-  if (result.resource_type === "video") {
-    return cloudinary.url(result.public_id, { resource_type: "video", format: "jpg" });
-  }
-  return cloudinary.url(result.public_id, {
-    width: 400,
-    height: 400,
-    crop: "fill",
-    format: result.format,
-  });
-};
-
 export const uploadMedia = async (req, res, next) => {
   try {
-    if (!isCloudinaryConfigured) return storageUnconfigured(res);
+    if (!isStorageReady) return storageUnconfigured(res);
 
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
@@ -52,21 +40,22 @@ export const uploadMedia = async (req, res, next) => {
       return res.status(400).json(formatError("VALIDATION_ERROR", "file is required"));
     }
 
-    const result = await uploadBufferToCloudinary(req.file.buffer, {
-      folder: `event-media/${eventId}`,
-      resource_type: "auto",
+    const stored = await storeMedia(req.file.buffer, {
+      eventId,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
     });
 
     const media = await Media.create({
       eventId,
       uploadedBy: req.user.userId,
-      type: result.resource_type === "video" ? "video" : "image",
-      url: result.secure_url,
-      thumbnailUrl: buildThumbnailUrl(result),
-      publicId: result.public_id,
+      type: stored.type,
+      url: stored.url,
+      thumbnailUrl: stored.thumbnailUrl,
+      publicId: stored.publicId,
       caption: req.body?.caption || "",
-      width: result.width,
-      height: result.height,
+      width: stored.width,
+      height: stored.height,
     });
 
     return res.status(201).json(toMediaDTO(media));
@@ -87,7 +76,7 @@ export const listMediaForManagement = async (req, res, next) => {
 
 export const deleteMedia = async (req, res, next) => {
   try {
-    if (!isCloudinaryConfigured) return storageUnconfigured(res);
+    if (!isStorageReady) return storageUnconfigured(res);
 
     const { mediaId } = req.params;
     const media = await Media.findById(mediaId);
@@ -100,17 +89,7 @@ export const deleteMedia = async (req, res, next) => {
       return res.status(403).json(formatError("FORBIDDEN", "You can only delete your own uploads"));
     }
 
-    try {
-      const result = await cloudinary.uploader.destroy(media.publicId, {
-        resource_type: media.type === "video" ? "video" : "image",
-      });
-      if (result.result === "not found") {
-        console.warn(`Cloudinary asset already missing for media ${media._id}, removing DB record anyway`);
-      }
-    } catch (cloudinaryErr) {
-      return next(cloudinaryErr);
-    }
-
+    await removeMedia(media.publicId, media.type);
     await media.deleteOne();
     return res.json({ success: true });
   } catch (err) {
