@@ -7,9 +7,12 @@ const connectDB = async () => {
   }
 
   try {
-    await mongoose.connect(uri, {
-      dbName: "event_media_system",
-    });
+    // The database name comes from MONGO_URI (see .env.example). MONGO_DB_NAME
+    // overrides it, which is what lets the seed target a scratch database.
+    const options = process.env.MONGO_DB_NAME
+      ? { dbName: process.env.MONGO_DB_NAME }
+      : {};
+    await mongoose.connect(uri, options);
     console.log("MongoDB connected");
   } catch (error) {
     console.error("MongoDB connection error", error);
