@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ["admin", "photographer", "attendee"], default: "attendee" },
+  // Deactivated accounts keep their data but cannot sign in.
+  isActive: { type: Boolean, default: true },
+  // Set when an admin creates the account rather than the user signing up.
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  lastLoginAt: { type: Date, default: null },
 
   // Profile completed after signup. Registration for an event is blocked until
   // every field in REQUIRED_PROFILE_FIELDS is filled in.
@@ -66,6 +71,8 @@ export const toUserDTO = (user) => {
     initials: `${firstName[0] || ""}${(rest[rest.length - 1] || "")[0] || ""}`.toUpperCase(),
     email: user.email,
     role: user.role,
+    isActive: user.isActive !== false,
+    lastLoginAt: user.lastLoginAt || null,
     phone: user.phone || "",
     location: user.location || "",
     institution: user.institution || "",

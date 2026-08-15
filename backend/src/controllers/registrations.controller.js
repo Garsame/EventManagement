@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import Event from "../models/Event.js";
+import Event, { canRegisterFor } from "../models/Event.js";
 import EventRegistration from "../models/EventRegistration.js";
 import Media from "../models/Media.js";
 import User, { missingProfileFields } from "../models/User.js";
@@ -26,6 +26,18 @@ export const registerForEvent = async (req, res, next) => {
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    // Drafts and completed events are not taking registrations.
+    if (!canRegisterFor(event)) {
+      return res.status(403).json(
+        formatError(
+          "REGISTRATION_CLOSED",
+          event.status === "completed"
+            ? "This event has finished, so registration is closed."
+            : "Registration is not open for this event yet."
+        )
+      );
+    }
 
     // Organisers need a full profile on file before anyone takes a place, so
     // this is enforced here rather than only in the UI.

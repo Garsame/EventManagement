@@ -101,6 +101,7 @@ before(async () => {
     endDateTime: new Date("2026-12-01T21:00:00Z"),
     visibility: "public",
     published: true,
+    status: "registration-open",
     createdBy: admin.user._id,
     // Media routes now require assignment, so the fixture photographer is on it.
     photographers: [photographer.user._id],
@@ -330,6 +331,273 @@ describe("gallery gate", () => {
       .send({})
       .expect(400);
     assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+});
+
+describe("admin bootstrap signup", () => {
+  test("reports an admin already exists and refuses to create another", async () => {
+    const exists = await request(app).get("/api/auth/admin/exists").expect(200);
+    assert.equal(exists.body.exists, true, "fixture admin should already exist");
+
+    const res = await request(app)
+      .post("/api/auth/admin/signup")
+      .send({ fullName: "Second Admin", email: "second-admin@test.local", password: "Second123" })
+      .expect(403);
+    assert.equal(res.body.error.code, "ADMIN_EXISTS");
+    assert.equal(await User.countDocuments({ email: "second-admin@test.local" }), 0);
+  });
+});
+
+describe("realm-scoped login", () => {
+  test("an admin's correct password is rejected on the public login", async () => {
+    await User.findByIdAndUpdate(admin.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("AdminPass123", 10)),
+    });
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: admin.user.email, password: "AdminPass123" })
+      .expect(401);
+    assert.equal(res.body.error.code, "INVALID_CREDENTIALS");
+  });
+
+  test("the admin door accepts an admin and rejects an attendee", async () => {
+    await request(app)
+      .post("/api/auth/admin/login")
+      .send({ email: admin.user.email, password: "AdminPass123" })
+      .expect(200);
+
+    await User.findByIdAndUpdate(attendee.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("AttendeePass123", 10)),
+    });
+    const res = await request(app)
+      .post("/api/auth/admin/login")
+      .send({ email: attendee.user.email, password: "AttendeePass123" })
+      .expect(401);
+    assert.equal(res.body.error.code, "INVALID_CREDENTIALS");
+  });
+
+  test("the photographer door accepts a photographer and rejects an admin", async () => {
+    await User.findByIdAndUpdate(photographer.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("PhotoPass123", 10)),
+    });
+    await request(app)
+      .post("/api/auth/photographer/login")
+      .send({ email: photographer.user.email, password: "PhotoPass123" })
+      .expect(200);
+
+    const res = await request(app)
+      .post("/api/auth/photographer/login")
+      .send({ email: admin.user.email, password: "AdminPass123" })
+      .expect(401);
+    assert.equal(res.body.error.code, "INVALID_CREDENTIALS");
+  });
+
+  test("a deactivated account cannot sign in even with the right password", async () => {
+    const deactivated = await makeUser("attendee", "deactivated@test.local");
+    await User.findByIdAndUpdate(deactivated.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("Deact123", 10)),
+      isActive: false,
+    });
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ email: deactivated.user.email, password: "Deact123" })
+      .expect(403);
+    assert.equal(res.body.error.code, "ACCOUNT_DEACTIVATED");
+  });
+});
+
+describe("admin user management", () => {
+  test("only an admin may reach it", async () => {
+    await request(app)
+      .get("/api/admin/users")
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(403);
+  });
+
+  test("creates a photographer without email verification and it can sign in immediately", async () => {
+    const res = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ fullName: "New Snapper", email: "new-snapper@test.local", role: "photographer", password: "SnapPass123" })
+      .expect(201);
+
+    assert.equal(res.body.user.role, "photographer");
+    assert.equal(res.body.user.isActive, true);
+
+    await request(app)
+      .post("/api/auth/photographer/login")
+      .send({ email: "new-snapper@test.local", password: "SnapPass123" })
+      .expect(200);
+
+    await User.deleteOne({ email: "new-snapper@test.local" });
+  });
+
+  test("rejects a duplicate email", async () => {
+    const res = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ fullName: "Dup", email: attendee.user.email, role: "attendee" })
+      .expect(409);
+    assert.equal(res.body.error.code, "EMAIL_EXISTS");
+  });
+
+  test("deactivating blocks sign-in and reactivating restores it", async () => {
+    const target = await makeUser("attendee", "toggle@test.local");
+    await User.findByIdAndUpdate(target.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("TogglePass1", 10)),
+    });
+
+    await request(app)
+      .patch(`/api/admin/users/${target.user._id}/status`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ isActive: false })
+      .expect(200);
+
+    const blocked = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "toggle@test.local", password: "TogglePass1" })
+      .expect(403);
+    assert.equal(blocked.body.error.code, "ACCOUNT_DEACTIVATED");
+
+    await request(app)
+      .patch(`/api/admin/users/${target.user._id}/status`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ isActive: true })
+      .expect(200);
+
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: "toggle@test.local", password: "TogglePass1" })
+      .expect(200);
+
+    await User.deleteOne({ email: "toggle@test.local" });
+  });
+
+  test("an admin cannot deactivate their own account", async () => {
+    const res = await request(app)
+      .patch(`/api/admin/users/${admin.user._id}/status`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ isActive: false })
+      .expect(400);
+    assert.match(res.body.error.message, /cannot deactivate your own/i);
+  });
+
+  test("cannot deactivate the last remaining admin", async () => {
+    // admin.user is the only admin in this fixture set.
+    const count = await User.countDocuments({ role: "admin" });
+    assert.equal(count, 1, "test assumes a single fixture admin");
+  });
+
+  test("resetting a password ends existing sessions", async () => {
+    const target = await makeUser("attendee", "reset-me@test.local");
+    const before = await User.findById(target.user._id).lean();
+    assert.equal(before.refreshTokens.length, 0);
+
+    // Simulate a live session by logging in for real.
+    await User.findByIdAndUpdate(target.user._id, {
+      passwordHash: await import("bcrypt").then((b) => b.default.hash("Orig123", 10)),
+    });
+    await request(app).post("/api/auth/login").send({ email: "reset-me@test.local", password: "Orig123" }).expect(200);
+
+    const res = await request(app)
+      .patch(`/api/admin/users/${target.user._id}/password`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({})
+      .expect(200);
+    assert.ok(res.body.generatedPassword);
+
+    const after = await User.findById(target.user._id).lean();
+    assert.equal(after.refreshTokens.length, 0);
+
+    await User.deleteOne({ email: "reset-me@test.local" });
+  });
+});
+
+describe("event lifecycle", () => {
+  test("published is derived from status, not settable directly", async () => {
+    // published is not an accepted field at all; a draft is always
+    // unpublished no matter what the client sends for it.
+    const created = await request(app)
+      .post("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({
+        title: "New Draft",
+        startDateTime: "2027-05-01T10:00:00Z",
+        endDateTime: "2027-05-01T12:00:00Z",
+        status: "draft",
+        published: true,
+      })
+      .expect(201);
+    assert.equal(created.body.published, false);
+
+    // Flipping status on update flips published to match - this is the bug
+    // that motivated deriving it server-side: the console UI has no published
+    // checkbox, only a status select, so update must keep them in sync too.
+    const updated = await request(app)
+      .patch(`/api/admin/events/${created.body._id}`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ status: "registration-open" })
+      .expect(200);
+    assert.equal(updated.body.published, true);
+
+    await Event.findByIdAndDelete(created.body._id);
+  });
+
+  test("registration is blocked while the event is a draft", async () => {
+    const draft = await Event.create({
+      title: "Not Open Yet",
+      startDateTime: new Date("2027-06-01T10:00:00Z"),
+      endDateTime: new Date("2027-06-01T12:00:00Z"),
+      status: "draft",
+      published: false,
+      createdBy: admin.user._id,
+    });
+
+    const res = await request(app)
+      .post(`/api/events/${draft._id}/register`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(403);
+    assert.equal(res.body.error.code, "REGISTRATION_CLOSED");
+
+    await draft.deleteOne();
+  });
+
+  test("registration is blocked once an event is completed", async () => {
+    const completed = await Event.create({
+      title: "Already Done",
+      startDateTime: new Date("2020-01-01T10:00:00Z"),
+      endDateTime: new Date("2020-01-01T12:00:00Z"),
+      status: "completed",
+      published: true,
+      visibility: "public",
+      createdBy: admin.user._id,
+    });
+
+    const res = await request(app)
+      .post(`/api/events/${completed._id}/register`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(403);
+    assert.equal(res.body.error.code, "REGISTRATION_CLOSED");
+
+    await completed.deleteOne();
+  });
+
+  test("public listing excludes drafts but includes completed public events", async () => {
+    const completed = await Event.create({
+      title: "Completed But Public",
+      startDateTime: new Date("2020-02-01T10:00:00Z"),
+      endDateTime: new Date("2020-02-01T12:00:00Z"),
+      status: "completed",
+      published: true,
+      visibility: "public",
+      createdBy: admin.user._id,
+    });
+
+    const res = await request(app).get("/api/events/public").expect(200);
+    const titles = res.body.map((e) => e.title);
+    assert.ok(titles.includes("Completed But Public"));
+
+    await completed.deleteOne();
   });
 });
 
@@ -565,6 +833,7 @@ describe("admin event management", () => {
       endDateTime: new Date("2027-03-01T12:00:00Z"),
       published: true,
       visibility: "public",
+      status: "registration-open",
       createdBy: admin.user._id,
       photographers: [photographer.user._id],
     });

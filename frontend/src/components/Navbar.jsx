@@ -27,7 +27,10 @@ const linkClass = ({ isActive }) => (isActive ? "is-active" : undefined);
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const { user, isAuthed, isStaff, logout } = useAuth();
+  // The public realm only ever authenticates attendees now - admin and
+  // photographer sign in through their own separate realms entirely - so
+  // there is no staff branch to render here.
+  const { user, isAuthed, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -65,7 +68,6 @@ export default function Navbar() {
           <NavLink to="/events" className={linkClass}>Events</NavLink>
           {/* Dashboard only exists for signed-in users. */}
           {isAuthed && <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>}
-          {isStaff && <NavLink to="/admin/dashboard" className={linkClass}>Admin</NavLink>}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -103,12 +105,6 @@ export default function Navbar() {
                       <span className="badge badge-warn ml-auto">Incomplete</span>
                     )}
                   </Link>
-                  {isStaff && (
-                    <>
-                      <div className="menu-divider" />
-                      <Link to="/admin/dashboard" onClick={() => setMenuOpen(false)} role="menuitem">Admin area</Link>
-                    </>
-                  )}
                   <div className="menu-divider" />
                   <button type="button" onClick={handleLogout} role="menuitem">Log out</button>
                 </div>

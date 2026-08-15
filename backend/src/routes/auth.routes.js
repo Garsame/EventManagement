@@ -1,5 +1,14 @@
 import { Router } from "express";
-import { login, logout, refresh, register } from "../controllers/auth.controller.js";
+import {
+  adminExists,
+  adminLogin,
+  adminSignup,
+  login,
+  logout,
+  photographerLogin,
+  refresh,
+  register,
+} from "../controllers/auth.controller.js";
 import {
   cancelSignupOtp,
   changePasswordWithOtp,
@@ -13,7 +22,13 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 
 router.post("/register", authLimiter, register);
+// Separate doors per realm. Each rejects roles that do not belong to it, so an
+// admin cannot sign in on the public form even with the right password.
 router.post("/login", authLimiter, login);
+router.post("/admin/login", authLimiter, adminLogin);
+router.get("/admin/exists", adminExists);
+router.post("/admin/signup", authLimiter, adminSignup);
+router.post("/photographer/login", authLimiter, photographerLogin);
 router.post("/refresh", authLimiter, refresh);
 router.post("/logout", logout);
 

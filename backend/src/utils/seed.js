@@ -83,6 +83,7 @@ const seedEvents = async (createdBy) => {
       endDateTime: new Date(event.endDateTime),
       visibility: "public",
       published: true,
+      status: "registration-open",
       createdBy,
     });
     console.log("event created:", event.title);
