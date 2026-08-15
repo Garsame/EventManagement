@@ -3,7 +3,11 @@ import { Readable } from "stream";
 
 const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
 
-if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+export const isCloudinaryConfigured = Boolean(
+  CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET
+);
+
+if (!isCloudinaryConfigured) {
   console.warn("Cloudinary env vars are not fully set - media upload endpoints will fail until configured.");
 } else {
   cloudinary.config({
