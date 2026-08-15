@@ -106,6 +106,15 @@ const seed = async () => {
     role: "photographer",
   });
 
+  // Deliberately left unregistered so the register -> check-in -> gallery
+  // flow can be demonstrated from the beginning.
+  await seedUser({
+    fullName: "Demo Attendee",
+    email: "attendee@example.com",
+    password: "Attend123!",
+    role: "attendee",
+  });
+
   await seedEvents(admin._id);
 
   process.exit(0);
