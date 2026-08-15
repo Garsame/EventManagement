@@ -2,7 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import client from "../api/client.js";
 import * as tokenStore from "../api/tokenStore.js";
 
-const USER_KEY = "ems_user";
+// Prefixed for the same reason as tokenStore.js's keys - see the comment
+// there. Orphans anything stored under the old "ems_user" key.
+const USER_KEY = "ems_public_user";
 const AuthContext = createContext(null);
 
 const readStoredUser = () => {
@@ -27,6 +29,14 @@ export function AuthProvider({ children }) {
 
   // localStorage holds a snapshot from login; re-fetch so profile edits made
   // elsewhere (or fields added since) are reflected on load.
+  //
+  // This is also the enforcement point for the public/admin/photographer
+  // boundary: /api/users/me and /api/auth/refresh are shared by all three
+  // realms and don't know which UI is calling them, so a token that somehow
+  // ended up in this realm's storage - a leftover from testing, a bug
+  // elsewhere - could otherwise authenticate as whatever role it carries.
+  // Refusing anything that isn't an attendee here means the public site can
+  // never render an admin's or photographer's session, even by accident.
   const refreshUser = useCallback(async () => {
     if (!tokenStore.getAccessToken()) {
       setUser(null);
@@ -35,6 +45,12 @@ export function AuthProvider({ children }) {
     }
     try {
       const res = await client.get("/api/users/me");
+      if (res.data.user.role !== "attendee") {
+        tokenStore.clearTokens();
+        writeStoredUser(null);
+        setUser(null);
+        return null;
+      }
       setUser(res.data.user);
       writeStoredUser(res.data.user);
       return res.data.user;
@@ -68,6 +84,12 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const res = await client.post("/api/auth/login", { email, password });
+    // The backend already restricts this endpoint to attendees; this is a
+    // second, defensive check so the same rule holds even if that ever
+    // changes without this file being updated to match.
+    if (res.data.user.role !== "attendee") {
+      throw new Error("This sign-in is for attendees only.");
+    }
     tokenStore.setAccessToken(res.data.accessToken);
     tokenStore.setRefreshToken(res.data.refreshToken);
     setUser(res.data.user);
@@ -98,7 +120,6 @@ export function AuthProvider({ children }) {
       user,
       loading,
       isAuthed: !!user,
-      isStaff: user?.role === "admin" || user?.role === "photographer",
       profileComplete: !!user?.profileComplete,
       login,
       logout,
