@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Class-based dark mode. ThemeProvider puts .dark on <html>, so both the
+   public site and the dashboard switch from the same source of truth. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -24,7 +28,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
     font-family: var(--font-sans);
   }
   h1, h2, h3, h4 {
@@ -37,6 +41,10 @@
   img {
     @apply max-w-full block;
   }
+  /* Colour-scheme aware form controls and scrollbars. */
+  .dark {
+    color-scheme: dark;
+  }
 }
 
 @layer components {
@@ -48,16 +56,21 @@
 
   .grid { @apply grid gap-4; }
   .grid-3 { @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3; }
+  .grid-4 { @apply grid-cols-2 lg:grid-cols-4; }
   .two-col { @apply grid gap-4 grid-cols-1 sm:grid-cols-2; }
   .stack { @apply flex flex-col gap-3; }
 
-  .text-muted { @apply text-slate-500; }
+  .text-muted { @apply text-slate-500 dark:text-slate-400; }
 
   /* Cards */
   .card-surface {
-    @apply bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm shadow-slate-900/[0.03] transition-shadow;
+    @apply bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm shadow-slate-900/[0.03] transition-shadow
+           dark:bg-slate-900 dark:border-slate-800;
   }
-  .card-muted { @apply bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-slate-500; }
+  .card-muted {
+    @apply bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-slate-500
+           dark:bg-slate-900/60 dark:border-slate-700 dark:text-slate-400;
+  }
 
   /* Buttons */
   .btn {
@@ -65,48 +78,57 @@
            transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none;
   }
   .btn:not(:disabled):hover { @apply -translate-y-0.5 shadow-lg; }
-  .btn-primary { @apply bg-brand-600 text-white shadow-md shadow-brand-600/25 hover:bg-brand-700; }
-  .btn-secondary { @apply bg-slate-900 text-white shadow-md shadow-slate-900/15 hover:bg-slate-800; }
-  .btn-danger { @apply bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100; }
-  .btn-ghost { @apply bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50; }
+  .btn-primary { @apply bg-brand-600 text-white shadow-md shadow-brand-600/25 hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-400; }
+  .btn-secondary { @apply bg-slate-900 text-white shadow-md shadow-slate-900/15 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white; }
+  .btn-danger { @apply bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900 dark:hover:bg-rose-950/70; }
+  .btn-ghost {
+    @apply bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50
+           dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-slate-600;
+  }
 
   /* Inputs */
   .input-row { @apply flex flex-col gap-1.5 mb-4; }
   .input-wrapper { @apply relative; }
   .input {
     @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-slate-900
-           transition-colors focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
+           transition-colors focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15
+           dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500;
   }
+  .input-label { @apply font-semibold text-slate-700 text-sm dark:text-slate-300; }
   .with-icon { @apply pl-10; }
   .input-icon { @apply absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400; }
-  .input-error { @apply border-rose-400; }
-  .error-text { @apply text-rose-600 text-sm; }
-  .helper-text { @apply text-slate-500 text-sm; }
+  .input-error { @apply border-rose-400 dark:border-rose-500; }
+  .error-text { @apply text-rose-600 text-sm dark:text-rose-400; }
+  .helper-text { @apply text-slate-500 text-sm dark:text-slate-400; }
 
   /* Alerts */
   .alert { @apply rounded-xl px-4 py-3 border text-sm font-medium; }
-  .alert-info { @apply bg-brand-50 border-brand-100 text-brand-700; }
-  .alert-success { @apply bg-emerald-50 border-emerald-100 text-emerald-700; }
-  .alert-error { @apply bg-rose-50 border-rose-100 text-rose-700; }
+  .alert-info { @apply bg-brand-50 border-brand-100 text-brand-700 dark:bg-brand-500/10 dark:border-brand-500/30 dark:text-brand-200; }
+  .alert-success { @apply bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300; }
+  .alert-error { @apply bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-300; }
+  .alert-warn { @apply bg-amber-50 border-amber-100 text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-200; }
 
   /* Badges */
   .badge { @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide; }
-  .badge-neutral { @apply bg-slate-100 text-slate-700; }
-  .badge-success { @apply bg-emerald-50 text-emerald-700; }
-  .badge-warn { @apply bg-amber-50 text-amber-700; }
-  .badge-info { @apply bg-brand-50 text-brand-700; }
+  .badge-neutral { @apply bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300; }
+  .badge-success { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300; }
+  .badge-warn { @apply bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300; }
+  .badge-info { @apply bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200; }
 
   /* Loading */
-  .loading { @apply inline-flex items-center gap-2 text-slate-500; }
+  .loading { @apply inline-flex items-center gap-2 text-slate-500 dark:text-slate-400; }
   .spinner {
-    @apply w-4 h-4 rounded-full border-2 border-slate-200;
+    @apply w-4 h-4 rounded-full border-2 border-slate-200 dark:border-slate-700;
     border-top-color: var(--color-brand-600);
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Empty state */
-  .empty-state { @apply text-center py-10 px-6 border border-dashed border-slate-200 rounded-2xl bg-white text-slate-500; }
+  .empty-state {
+    @apply text-center py-10 px-6 border border-dashed border-slate-200 rounded-2xl bg-white text-slate-500
+           dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400;
+  }
   .empty-icon { @apply text-3xl mb-2; }
 
   /* Page / section headers */
@@ -114,27 +136,94 @@
   .header-actions { @apply flex gap-2; }
 
   /* Navbar */
-  .navbar { @apply sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70; }
-  .navbar-inner { @apply w-full max-w-6xl mx-auto flex items-center justify-between gap-4 px-5 sm:px-6 py-3.5; }
-  .nav-links { @apply hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600; }
-  .nav-brand { @apply flex items-center gap-2 font-extrabold text-slate-900 text-lg; }
-  .nav-user { @apply inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-sm; }
+  .navbar {
+    @apply sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70
+           dark:bg-slate-950/85 dark:border-slate-800;
+  }
+  .navbar-inner { @apply w-full max-w-6xl mx-auto flex items-center justify-between gap-3 px-5 sm:px-6 py-3.5; }
+  .nav-links { @apply hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600 dark:text-slate-300; }
+  .nav-links a { @apply transition-colors hover:text-brand-600 dark:hover:text-brand-300; }
+  .nav-links a.is-active { @apply text-brand-600 dark:text-brand-300; }
+  .nav-brand { @apply flex items-center gap-2 font-extrabold text-slate-900 text-lg dark:text-white; }
+  .nav-user { @apply inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-sm dark:bg-slate-800; }
+
+  /* Avatar */
+  .avatar {
+    @apply inline-flex items-center justify-center rounded-full overflow-hidden shrink-0
+           bg-brand-100 text-brand-700 font-bold select-none
+           dark:bg-brand-500/20 dark:text-brand-200;
+  }
+  .avatar-sm { @apply w-9 h-9 text-xs; }
+  .avatar-md { @apply w-12 h-12 text-sm; }
+  .avatar-lg { @apply w-24 h-24 text-xl; }
+  .avatar img { @apply w-full h-full object-cover; }
+  .avatar-button {
+    @apply inline-flex items-center gap-2 rounded-full p-1 pr-3 border border-transparent transition-colors
+           hover:bg-slate-100 dark:hover:bg-slate-800;
+  }
+  .avatar-button.is-open { @apply bg-slate-100 dark:bg-slate-800; }
+
+  /* Dropdown menu */
+  .menu {
+    @apply absolute right-0 top-full mt-2 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-30
+           dark:bg-slate-900 dark:border-slate-800;
+  }
+  .menu a, .menu button {
+    @apply w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700
+           hover:bg-slate-100 transition-colors dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+  .menu-divider { @apply my-1.5 h-px bg-slate-200 dark:bg-slate-800; }
+
+  /* Theme toggle */
+  .theme-toggle {
+    @apply inline-flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-600
+           transition-colors hover:bg-slate-100 hover:text-slate-900
+           dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white;
+  }
 
   /* Footer */
-  .footer { @apply mt-20 border-t border-slate-200 bg-white; }
+  .footer { @apply mt-20 border-t border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800; }
 
-  /* Admin shell. Stacks below sm so the sidebar and content are not fighting
-     over a phone-width viewport; min-w-0 lets the content column actually
-     shrink instead of forcing the page to scroll sideways. */
-  .sidebar { @apply w-full sm:w-56 bg-white border-b sm:border-b-0 sm:border-r border-slate-200 sm:min-h-screen p-4 sm:sticky sm:top-0; }
-  .sidebar a { @apply block px-3 py-2.5 rounded-lg text-slate-700 font-medium hover:bg-slate-100; }
+  /* Admin / dashboard shell. Stacks below sm so the sidebar and content are not
+     fighting over a phone-width viewport; min-w-0 lets the content column
+     actually shrink instead of forcing the page to scroll sideways. */
+  .sidebar {
+    @apply w-full sm:w-56 bg-white border-b sm:border-b-0 sm:border-r border-slate-200 sm:min-h-screen p-4 sm:sticky sm:top-0
+           dark:bg-slate-900 dark:border-slate-800;
+  }
+  .sidebar a { @apply block px-3 py-2.5 rounded-lg text-slate-700 font-medium hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800; }
   .admin-shell { @apply flex flex-col sm:flex-row min-h-screen; }
   .admin-content { @apply flex-1 min-w-0 p-4 sm:p-6 max-w-5xl; }
   .topbar { @apply flex items-center justify-between gap-4 mb-6 flex-wrap; }
 
+  /* Dashboard sub-navigation (tabs under the shared public navbar) */
+  .dash-tabs {
+    @apply flex items-center gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-800;
+  }
+  .dash-tab {
+    @apply inline-flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 border-transparent
+           text-slate-500 transition-colors hover:text-slate-900
+           dark:text-slate-400 dark:hover:text-white;
+  }
+  .dash-tab.is-active { @apply border-brand-600 text-brand-700 dark:border-brand-400 dark:text-brand-300; }
+
   /* Stat cards */
   .stat-grid { @apply grid gap-4 grid-cols-1 sm:grid-cols-3; }
-  .stat-card { @apply bg-white border border-slate-200 rounded-2xl p-5 shadow-sm; }
-  .stat-value { @apply text-2xl font-extrabold text-slate-900; }
-  .stat-label { @apply text-slate-500 text-sm; }
+  .stat-card { @apply bg-white border border-slate-200 rounded-2xl p-5 shadow-sm dark:bg-slate-900 dark:border-slate-800; }
+  .stat-value { @apply text-2xl font-extrabold text-slate-900 dark:text-white; }
+  .stat-label { @apply text-slate-500 text-sm dark:text-slate-400; }
+
+  /* Progress meter (profile completeness) */
+  .progress-track { @apply w-full h-2 rounded-full bg-slate-200 overflow-hidden dark:bg-slate-800; }
+  .progress-fill { @apply h-full rounded-full bg-brand-600 transition-[width] duration-500 dark:bg-brand-400; }
+
+  /* Journey stepper: Registered -> Checked in -> Gallery */
+  .stepper { @apply flex items-stretch gap-0 w-full; }
+  .step { @apply flex-1 min-w-0 flex flex-col gap-1.5; }
+  .step-bar { @apply h-1.5 rounded-full bg-slate-200 dark:bg-slate-800; }
+  .step.is-done .step-bar { @apply bg-emerald-500; }
+  .step.is-current .step-bar { @apply bg-brand-600 dark:bg-brand-400; }
+  .step-label { @apply text-xs font-semibold text-slate-400 truncate dark:text-slate-500; }
+  .step.is-done .step-label { @apply text-emerald-600 dark:text-emerald-400; }
+  .step.is-current .step-label { @apply text-brand-700 dark:text-brand-300; }
 }

@@ -15,6 +15,19 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Apply the theme before first paint, otherwise a dark-mode user sees a
+      // white flash while React boots.
+      (function () {
+        try {
+          var stored = localStorage.getItem("ems_theme");
+          var dark =
+            stored === "dark" ||
+            (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

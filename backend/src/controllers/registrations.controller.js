@@ -2,6 +2,7 @@ import crypto from "crypto";
 import Event from "../models/Event.js";
 import EventRegistration from "../models/EventRegistration.js";
 import Media from "../models/Media.js";
+import User, { missingProfileFields } from "../models/User.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -25,6 +26,22 @@ export const registerForEvent = async (req, res, next) => {
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    // Organisers need a full profile on file before anyone takes a place, so
+    // this is enforced here rather than only in the UI.
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json(formatError("NOT_FOUND", "User not found"));
+
+    const missing = missingProfileFields(user);
+    if (missing.length > 0) {
+      return res.status(403).json({
+        error: {
+          code: "PROFILE_INCOMPLETE",
+          message: "Complete your profile before registering for an event.",
+          missingProfileFields: missing,
+        },
+      });
+    }
 
     let registration = await EventRegistration.findOne({ eventId, userId });
     if (registration) {

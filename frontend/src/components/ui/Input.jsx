@@ -12,7 +12,7 @@ export default function Input({
   return (
     <div className={cx("input-row", className)}>
       {label && (
-        <label className="font-semibold text-slate-700 text-sm" htmlFor={props.id || props.name}>
+        <label className="input-label" htmlFor={props.id || props.name}>
           {label}
         </label>
       )}

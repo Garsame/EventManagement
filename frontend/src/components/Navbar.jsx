@@ -1,19 +1,8 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import client from "../api/client.js";
-import * as tokenStore from "../api/tokenStore.js";
-import Button from "./ui/Button.jsx";
-
-const parseUser = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem("ems_user");
-    if (!stored) return null;
-    return JSON.parse(stored);
-  } catch (e) {
-    return null;
-  }
-};
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import Avatar from "./Avatar.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 
 function Logo() {
   return (
@@ -34,42 +23,36 @@ function Logo() {
   );
 }
 
+const linkClass = ({ isActive }) => (isActive ? "is-active" : undefined);
+
 export default function Navbar() {
   const navigate = useNavigate();
-  const [isAuthed, setIsAuthed] = useState(!!tokenStore.getAccessToken());
-  const [user, setUser] = useState(parseUser());
+  const { user, isAuthed, isStaff, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
+  // Close the account menu on outside click or Escape.
   useEffect(() => {
-    const update = () => {
-      setIsAuthed(!!tokenStore.getAccessToken());
-      setUser(parseUser());
+    if (!menuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
-    window.addEventListener("authchange", update);
-    window.addEventListener("storage", update);
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("authchange", update);
-      window.removeEventListener("storage", update);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [menuOpen]);
 
   const handleLogout = async () => {
-    try {
-      const refreshToken = tokenStore.getRefreshToken();
-      if (refreshToken) {
-        await client.post("/api/auth/logout", { refreshToken });
-      }
-    } catch (err) {
-      console.warn("Logout error", err);
-    } finally {
-      tokenStore.clearTokens();
-      window.localStorage.removeItem("ems_user");
-      setIsAuthed(false);
-      setUser(null);
-      navigate("/login");
-    }
+    setMenuOpen(false);
+    await logout();
+    navigate("/login");
   };
-
-  const isStaff = user?.role === "admin" || user?.role === "photographer";
 
   return (
     <div className="navbar">
@@ -77,35 +60,66 @@ export default function Navbar() {
         <Logo />
 
         <nav className="nav-links">
-          <Link to="/">Home</Link>
-          <Link to="/how-it-works">How it works</Link>
-          <Link to="/events">Events</Link>
-          {isStaff && <Link to="/admin/dashboard">Dashboard</Link>}
+          <NavLink to="/" end className={linkClass}>Home</NavLink>
+          <NavLink to="/how-it-works" className={linkClass}>How it works</NavLink>
+          <NavLink to="/events" className={linkClass}>Events</NavLink>
+          {/* Dashboard only exists for signed-in users. */}
+          {isAuthed && <NavLink to="/dashboard" className={linkClass}>Dashboard</NavLink>}
+          {isStaff && <NavLink to="/admin/dashboard" className={linkClass}>Admin</NavLink>}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+
           {isAuthed ? (
-            <>
-              {/* The brand plus this chip plus Logout overflows a 375px
-                  viewport, so the chip only appears once there is room. */}
-              {user && (
-                <span className="nav-user hidden sm:inline-flex">
-                  <span className="font-bold text-slate-900 capitalize">{user.role}</span>
-                  <span className="text-muted hidden md:inline">{user.email}</span>
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                className={`avatar-button ${menuOpen ? "is-open" : ""}`}
+                onClick={() => setMenuOpen((open) => !open)}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
+                <Avatar user={user} size="sm" />
+                {/* Name sits beside the avatar only when there is room for it. */}
+                <span className="hidden sm:inline text-sm font-semibold max-w-[9rem] truncate">
+                  {user?.firstName || user?.email}
                 </span>
+              </button>
+
+              {menuOpen && (
+                <div className="menu" role="menu">
+                  <div className="px-3 py-2">
+                    <div className="font-bold truncate">{user?.fullName}</div>
+                    <div className="text-muted text-xs truncate">{user?.email}</div>
+                    <span className="badge badge-neutral mt-2 capitalize">{user?.role}</span>
+                  </div>
+                  <div className="menu-divider" />
+                  <Link to="/dashboard" onClick={() => setMenuOpen(false)} role="menuitem">Dashboard</Link>
+                  <Link to="/dashboard/events" onClick={() => setMenuOpen(false)} role="menuitem">Your events</Link>
+                  <Link to="/dashboard/profile" onClick={() => setMenuOpen(false)} role="menuitem">
+                    Profile
+                    {!user?.profileComplete && (
+                      <span className="badge badge-warn ml-auto">Incomplete</span>
+                    )}
+                  </Link>
+                  {isStaff && (
+                    <>
+                      <div className="menu-divider" />
+                      <Link to="/admin/dashboard" onClick={() => setMenuOpen(false)} role="menuitem">Admin area</Link>
+                    </>
+                  )}
+                  <div className="menu-divider" />
+                  <button type="button" onClick={handleLogout} role="menuitem">Log out</button>
+                </div>
               )}
-              <Button variant="ghost" onClick={handleLogout}>
-                Logout
-              </Button>
-            </>
+            </div>
           ) : (
             <>
-              <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-2">
+              <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2">
                 Log in
               </Link>
-              <Link to="/register" className="btn btn-primary">
-                Register
-              </Link>
+              <Link to="/register" className="btn btn-primary">Register</Link>
             </>
           )}
         </div>

@@ -84,8 +84,33 @@ Creates three accounts and the five demo events used by the Events page:
 
 - `admin@example.com` / `Admin123!`
 - `photographer@example.com` / `Photo123!`
-- `attendee@example.com` / `Attend123!` (not registered for anything, so the
+- `attendee@example.com` / `Attend123!` (not registered for anything, and with a
+  deliberately empty profile, so both the profile-completion gate and the
   register -> check-in -> gallery flow can be shown from the start)
+
+## Attendee Dashboard
+
+Signed-in users get a `Dashboard` link in the main navigation and an avatar menu
+in place of the Log in / Register buttons. The avatar shows the uploaded photo,
+or the user's initials until one is set.
+
+- `/dashboard` — counts of events joined, attended, awaiting check-in, and
+  photos available, plus the next upcoming event
+- `/dashboard/events` — every registration with a Registered → Checked in →
+  Gallery progress bar, filters, and the registration code
+- `/dashboard/profile` — view and edit the full profile, upload or remove a photo
+
+**Registration is blocked until the profile is complete.** The required fields
+are mobile number, location, institution, highest education level, and sex.
+Field of study is optional because it does not apply to everyone. The rule is
+enforced in the API (`403 PROFILE_INCOMPLETE`), not only in the UI.
+
+## Theme
+
+A light/dark toggle sits in the navbar and applies to both the public site and
+the dashboard. The choice is stored in `localStorage` under `ems_theme`; with no
+stored choice the OS preference is followed. `index.html` applies the class
+before first paint so dark-mode users do not get a white flash.
 
 Safe to re-run — users are keyed by email and events by title, so nothing is
 duplicated or overwritten.

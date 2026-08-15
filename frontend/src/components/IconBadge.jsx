@@ -23,7 +23,7 @@ export default function IconBadge({ icon = "register", tone = "brand" }) {
   const toneClasses = {
     brand: "bg-brand-50 text-brand-600",
     accent: "bg-accent-50 text-accent-600",
-    slate: "bg-slate-100 text-slate-700",
+    slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   };
   return (
     <div className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl ${toneClasses[tone]}`}>

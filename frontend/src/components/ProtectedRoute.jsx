@@ -1,36 +1,43 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { getAccessToken } from "../api/tokenStore.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import PublicLayout from "./layout/PublicLayout.jsx";
 import Card from "./ui/Card.jsx";
 import Alert from "./ui/Alert.jsx";
-
-const parseUser = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = window.localStorage.getItem("ems_user");
-    if (!stored) return null;
-    return JSON.parse(stored);
-  } catch (e) {
-    return null;
-  }
-};
+import Loading from "./ui/Loading.jsx";
 
 export default function ProtectedRoute({ children, roles }) {
-  const isAuthed = !!getAccessToken();
-  if (!isAuthed) {
-    return <Navigate to="/login" replace />;
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  const hasToken = !!getAccessToken();
+
+  if (!hasToken) {
+    // Remember where they were headed so login can send them back.
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (roles && roles.length > 0) {
-    const user = parseUser();
-    if (!user || !roles.includes(user.role)) {
-      return (
+  // A token exists but the profile is still in flight; role checks would be
+  // wrong if evaluated now.
+  if (loading && !user) {
+    return (
+      <PublicLayout>
+        <div className="container page">
+          <Loading />
+        </div>
+      </PublicLayout>
+    );
+  }
+
+  if (roles && roles.length > 0 && (!user || !roles.includes(user.role))) {
+    return (
+      <PublicLayout>
         <div className="container page">
           <Card>
             <Alert variant="error">Access restricted. You don't have permission to view this page.</Alert>
           </Card>
         </div>
-      );
-    }
+      </PublicLayout>
+    );
   }
 
   return children;

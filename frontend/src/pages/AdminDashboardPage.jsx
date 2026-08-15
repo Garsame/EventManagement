@@ -89,14 +89,14 @@ export default function AdminDashboardPage() {
             </div>
             <div className="two-col">
               <div className="input-row">
-                <label className="font-semibold text-slate-700 text-sm">Visibility</label>
+                <label className="input-label">Visibility</label>
                 <select name="visibility" value={form.visibility} onChange={handleChange} className="input">
                   <option value="public">Public</option>
                   <option value="private">Private</option>
                 </select>
               </div>
               <div className="input-row justify-end">
-                <label className="flex items-center gap-2 font-medium text-slate-700">
+                <label className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
                   <input type="checkbox" name="published" checked={form.published} onChange={handleChange} className="w-4 h-4 accent-brand-600" />
                   Published
                 </label>

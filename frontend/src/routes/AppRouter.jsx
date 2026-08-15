@@ -11,6 +11,9 @@ import AdminCheckInPage from "../pages/AdminCheckInPage.jsx";
 import PhotographerUploadPage from "../pages/PhotographerUploadPage.jsx";
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
 import RegistrationStatusPage from "../pages/RegistrationStatusPage.jsx";
+import DashboardOverviewPage from "../pages/DashboardOverviewPage.jsx";
+import DashboardEventsPage from "../pages/DashboardEventsPage.jsx";
+import DashboardProfilePage from "../pages/DashboardProfilePage.jsx";
 
 export default function AppRouter() {
   return (
@@ -44,6 +47,32 @@ export default function AppRouter() {
           </ProtectedRoute>
         }
       />
+      {/* Attendee dashboard — any signed-in user, no role restriction */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardOverviewPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/events"
+        element={
+          <ProtectedRoute>
+            <DashboardEventsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/profile"
+        element={
+          <ProtectedRoute>
+            <DashboardProfilePage />
+          </ProtectedRoute>
+        }
+      />
+
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route

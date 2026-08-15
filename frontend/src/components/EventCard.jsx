@@ -14,7 +14,7 @@ export default function EventCard({ event }) {
       </div>
       <div className="p-5 flex flex-col flex-1">
         <div className="flex justify-between items-start gap-2">
-          <h3 className="m-0 text-lg font-bold text-slate-900">{event.title}</h3>
+          <h3 className="m-0 text-lg font-bold text-slate-900 dark:text-white">{event.title}</h3>
           <span className="badge badge-info shrink-0">Upcoming</span>
         </div>
         <p className="text-muted mt-1 text-sm">{formatDate(event.startDateTime)}</p>

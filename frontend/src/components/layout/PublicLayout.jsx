@@ -1,7 +1,10 @@
 import { Link } from "react-router-dom";
 import Navbar from "../Navbar.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 export default function PublicLayout({ children }) {
+  const { isAuthed } = useAuth();
+
   return (
     <div className="app-shell">
       <Navbar />
@@ -22,14 +25,23 @@ export default function PublicLayout({ children }) {
           </div>
           <div className="flex gap-10 text-sm">
             <div className="stack gap-2">
-              <span className="font-bold text-slate-900">Product</span>
-              <Link to="/how-it-works" className="text-muted hover:text-slate-900">How it works</Link>
-              <Link to="/events" className="text-muted hover:text-slate-900">Events</Link>
+              <span className="font-bold text-slate-900 dark:text-white">Product</span>
+              <Link to="/how-it-works" className="text-muted hover:text-slate-900 dark:hover:text-white">How it works</Link>
+              <Link to="/events" className="text-muted hover:text-slate-900 dark:hover:text-white">Events</Link>
             </div>
             <div className="stack gap-2">
-              <span className="font-bold text-slate-900">Account</span>
-              <Link to="/login" className="text-muted hover:text-slate-900">Log in</Link>
-              <Link to="/register" className="text-muted hover:text-slate-900">Register</Link>
+              <span className="font-bold text-slate-900 dark:text-white">Account</span>
+              {isAuthed ? (
+                <>
+                  <Link to="/dashboard" className="text-muted hover:text-slate-900 dark:hover:text-white">Dashboard</Link>
+                  <Link to="/dashboard/profile" className="text-muted hover:text-slate-900 dark:hover:text-white">Profile</Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login" className="text-muted hover:text-slate-900 dark:hover:text-white">Log in</Link>
+                  <Link to="/register" className="text-muted hover:text-slate-900 dark:hover:text-white">Register</Link>
+                </>
+              )}
             </div>
           </div>
         </div>
