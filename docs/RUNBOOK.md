@@ -63,10 +63,12 @@ cd backend
 npm run seed
 ```
 
-Creates two accounts and the five demo events used by the Events page:
+Creates three accounts and the five demo events used by the Events page:
 
 - `admin@example.com` / `Admin123!`
 - `photographer@example.com` / `Photo123!`
+- `attendee@example.com` / `Attend123!` (not registered for anything, so the
+  register -> check-in -> gallery flow can be shown from the start)
 
 Safe to re-run — users are keyed by email and events by title, so nothing is
 duplicated or overwritten.
