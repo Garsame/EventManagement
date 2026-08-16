@@ -16,18 +16,18 @@ export default function Modal({ title, onClose, children, wide = false }) {
         aria-modal="true"
         aria-label={title}
       >
-        <div className="flex items-center justify-between mb-5">
+        <div className="modal-header">
           <h3 className="m-0 text-lg font-bold">{title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
-        {children}
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );
