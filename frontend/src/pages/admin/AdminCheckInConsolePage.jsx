@@ -17,6 +17,8 @@ export default function AdminCheckInConsolePage() {
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [feed, setFeed] = useState([]);
+  const [checkedIn, setCheckedIn] = useState([]);
+  const [checkedInLoading, setCheckedInLoading] = useState(false);
 
   const lastScanRef = useRef({ token: "", at: 0 });
 
@@ -30,6 +32,19 @@ export default function AdminCheckInConsolePage() {
       .then((res) => setEvents(res.data.events.filter((e) => e.checkInOpen)))
       .catch(() => setError("Could not load events."));
   }, []);
+
+  // Full, persistent roster of who has been checked in for the selected
+  // event - distinct from `feed`, which is only this browser tab's scan
+  // history for the current session and resets on reload.
+  useEffect(() => {
+    if (!eventId) { setCheckedIn([]); return; }
+    setCheckedInLoading(true);
+    adminClient
+      .get(`/api/admin/events/${eventId}/registrations`)
+      .then((res) => setCheckedIn(res.data.registrations.filter((r) => r.attended)))
+      .catch(() => {})
+      .finally(() => setCheckedInLoading(false));
+  }, [eventId]);
 
   const event = events.find((e) => e._id === eventId);
 
@@ -52,6 +67,19 @@ export default function AdminCheckInConsolePage() {
           at: Date.now(),
         };
         setFeed((prev) => [entry, ...prev].slice(0, 8));
+        setCheckedIn((prev) =>
+          prev.some((g) => g.id === res.data.registration._id)
+            ? prev
+            : [
+                {
+                  id: res.data.registration._id,
+                  user: res.data.guest,
+                  registrationCode: res.data.registration.registrationCode,
+                  checkedInAt: res.data.registration.checkedInAt,
+                },
+                ...prev,
+              ]
+        );
         setRegistrationCode("");
       } catch (err) {
         setError(err.response?.data?.error?.message || "Check-in failed");
@@ -133,6 +161,32 @@ export default function AdminCheckInConsolePage() {
           </form>
 
           {error && <Alert variant="error" className="mt-4">{error}</Alert>}
+
+          {eventId && (
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+              <h3 className="mt-0 mb-3 text-base font-bold">Checked-in guests ({checkedIn.length})</h3>
+              {checkedInLoading && <p className="text-muted text-sm m-0">Loading…</p>}
+              {!checkedInLoading && checkedIn.length === 0 && (
+                <p className="text-muted text-sm m-0">No one has been checked in yet.</p>
+              )}
+              {!checkedInLoading && checkedIn.length > 0 && (
+                <div className="stack gap-2">
+                  {checkedIn.map((g) => (
+                    <div key={g.id} className="card-muted flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{g.user?.fullName || "Guest"}</div>
+                        <div className="text-xs text-muted">
+                          {g.registrationCode}
+                          {g.checkedInAt && ` · ${new Date(g.checkedInAt).toLocaleTimeString()}`}
+                        </div>
+                      </div>
+                      <Badge variant="success">✓</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         <Card>

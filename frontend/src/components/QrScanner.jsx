@@ -34,10 +34,11 @@ export default function QrScanner({ onScan, onError }) {
 
     scanner
       .start(
-        // Ideal (not exact) hints - browsers fall back gracefully if a camera
-        // can't hit them, and a bigger feed decodes more reliably than the
-        // default low-res stream.
-        { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        // facingMode only - adding width/height "ideal" hints here made
+        // start() reject outright on at least one real camera (reported as
+        // "No camera available" even though the same camera worked with
+        // just facingMode), so this stays as plain as possible.
+        { facingMode: "environment" },
         {
           fps: 15,
           // A function (not a fixed 240px box) so the scan target scales with
@@ -71,6 +72,10 @@ export default function QrScanner({ onScan, onError }) {
       })
       .catch((err) => {
         if (cancelled) return;
+        // The UI message stays generic (a guest desk doesn't need to see a
+        // DOMException name), but the real reason is worth having in the
+        // console when a camera that used to work suddenly doesn't.
+        console.warn("QrScanner: camera start failed:", err?.name, err?.message || err);
         const text =
           err?.name === "NotAllowedError"
             ? "Camera permission was denied. Enter the code manually below."
