@@ -288,9 +288,13 @@
 
   .console-overlay { @apply fixed inset-0 z-20 bg-slate-950/50 lg:hidden; }
 
-  /* Cover thumbnails on event cards */
+  /* Cover thumbnails on event cards. self-start is load-bearing: the parent
+     row has no align-items set, which defaults to stretch for a flex child,
+     and an explicit stretched cross-size wins over aspect-ratio per spec -
+     without this the thumb was stretching to match its sibling's full
+     height (measured 160x349) instead of staying square. */
   .cover-thumb {
-    @apply w-full sm:w-40 aspect-video sm:aspect-square shrink-0 rounded-xl overflow-hidden
+    @apply w-full sm:w-56 aspect-square shrink-0 self-start rounded-xl overflow-hidden
            bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400
            dark:bg-slate-800 dark:border-slate-700;
   }

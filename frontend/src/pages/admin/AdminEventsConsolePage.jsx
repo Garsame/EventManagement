@@ -245,8 +245,8 @@ export default function AdminEventsConsolePage() {
           const isChanging = changingEventId === event._id;
           const pickable = photographers.filter((p) => p.id !== assignedPhotographer?.id);
           return (
-            <Card key={event._id}>
-              <div className="flex gap-4 flex-col sm:flex-row">
+            <Card key={event._id} className="!p-4">
+              <div className="flex gap-4 flex-col sm:flex-row items-start">
                 <div className="cover-thumb">
                   {event.coverImageUrl
                     ? <img src={event.coverImageUrl} alt="" />
@@ -268,14 +268,14 @@ export default function AdminEventsConsolePage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-4 mt-4">
-                    <div className="card-muted"><div className="text-xs uppercase">Registered</div><strong>{event.registrationCount}</strong></div>
-                    <div className="card-muted"><div className="text-xs uppercase">Attended</div><strong>{event.attendedCount}</strong></div>
-                    <div className="card-muted"><div className="text-xs uppercase">Media</div><strong>{event.mediaCount}</strong></div>
-                    <div className="card-muted"><div className="text-xs uppercase">Photographers</div><strong>{event.photographers.length}</strong></div>
+                  <div className="grid grid-4 mt-3">
+                    <div className="card-muted !p-2"><div className="text-xs uppercase">Registered</div><strong>{event.registrationCount}</strong></div>
+                    <div className="card-muted !p-2"><div className="text-xs uppercase">Attended</div><strong>{event.attendedCount}</strong></div>
+                    <div className="card-muted !p-2"><div className="text-xs uppercase">Media</div><strong>{event.mediaCount}</strong></div>
+                    <div className="card-muted !p-2"><div className="text-xs uppercase">Photographers</div><strong>{event.photographers.length}</strong></div>
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <div className="input-label mb-2">Photographer</div>
                     <div className="flex items-center gap-3 flex-wrap">
                       {assignedPhotographer ? (
@@ -323,7 +323,7 @@ export default function AdminEventsConsolePage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2 flex-wrap mt-4">
+                  <div className="flex gap-2 flex-wrap mt-3">
                     <Button
                       type="button"
                       variant={event.checkInOpen ? "ghost" : "primary"}
@@ -335,7 +335,6 @@ export default function AdminEventsConsolePage() {
                     </Button>
                     <Link to={`/maamul/events/${event._id}/registrations`} className="btn btn-ghost">View registrations</Link>
                     <Link to={`/maamul/events/${event._id}/media`} className="btn btn-ghost">Manage media</Link>
-                    <Link to={`/events/${event._id}`} className="btn btn-ghost">View public page</Link>
                     <Button type="button" variant="ghost" onClick={() => openEdit(event)} disabled={busyId === event._id}>Edit</Button>
                     <Button type="button" variant="danger" onClick={() => setDeleteTarget(event)} disabled={busyId === event._id}>
                       {busyId === event._id ? "Working…" : "Delete"}
