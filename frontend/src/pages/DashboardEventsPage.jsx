@@ -89,8 +89,19 @@ export default function DashboardEventsPage() {
                     <Badge variant={item.attended ? "success" : "warn"}>
                       {item.attended ? "Checked in" : "Registered"}
                     </Badge>
+                    {item.event.isPremium && (
+                      <Badge variant={item.paymentStatus === "paid" ? "success" : item.paymentStatus === "refunded" ? "neutral" : "warn"}>
+                        {item.paymentStatus === "paid" ? "Payment confirmed" : item.paymentStatus === "refunded" ? "Refunded" : "Payment pending"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
+
+                {item.event.isPremium && (
+                  <p className="text-muted text-sm mt-2 mb-0">
+                    Plan: <strong>{item.planName}</strong> — {item.currency} {item.amountDue}
+                  </p>
+                )}
 
                 <div className="mt-5">
                   <EventJourney stage={item.stage} />

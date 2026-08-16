@@ -1263,3 +1263,133 @@ describe("activity log", () => {
     assert.ok(feed.body.activity.every((a) => JSON.stringify(a).includes("logged-checkin")));
   });
 });
+
+describe("premium events", () => {
+  let premiumEvent;
+  let standardPlanId;
+
+  before(async () => {
+    premiumEvent = await Event.create({
+      title: "Premium Test Event",
+      startDateTime: new Date("2027-06-01T18:00:00Z"),
+      endDateTime: new Date("2027-06-01T21:00:00Z"),
+      published: true,
+      visibility: "public",
+      status: "registration-open",
+      createdBy: admin.user._id,
+      photographers: [photographer.user._id],
+      isPremium: true,
+      currency: "USD",
+      plans: [
+        { name: "Standard", price: 10, description: "General admission" },
+        { name: "VIP", price: 25, description: "Front row + swag" },
+      ],
+    });
+    standardPlanId = premiumEvent.plans[0]._id;
+  });
+
+  test("creating a premium event without any plans is rejected", async () => {
+    const res = await request(app)
+      .post("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({
+        title: "No Plans Event",
+        startDateTime: "2027-07-01T18:00:00Z",
+        endDateTime: "2027-07-01T21:00:00Z",
+        isPremium: true,
+      })
+      .expect(400);
+    assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+
+  test("creating a premium event with plans succeeds", async () => {
+    const res = await request(app)
+      .post("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({
+        title: "Created Premium Event",
+        startDateTime: "2027-07-01T18:00:00Z",
+        endDateTime: "2027-07-01T21:00:00Z",
+        isPremium: true,
+        currency: "USD",
+        plans: [{ name: "Basic", price: 5 }],
+      })
+      .expect(201);
+    assert.equal(res.body.isPremium, true);
+    assert.equal(res.body.plans.length, 1);
+    assert.equal(res.body.plans[0].name, "Basic");
+  });
+
+  test("registering for a premium event without a valid planId is rejected", async () => {
+    const res = await request(app)
+      .post(`/api/events/${premiumEvent._id}/register`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .send({})
+      .expect(400);
+    assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+
+  test("registering with a valid planId snapshots the plan and starts pending", async () => {
+    const res = await request(app)
+      .post(`/api/events/${premiumEvent._id}/register`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .send({ planId: standardPlanId, paymentReference: "EVC-12345" })
+      .expect(201);
+    assert.equal(res.body.registration.planName, "Standard");
+    assert.equal(res.body.registration.amountDue, 10);
+    assert.equal(res.body.registration.currency, "USD");
+    assert.equal(res.body.registration.paymentStatus, "pending");
+    assert.equal(res.body.registration.paymentReference, "EVC-12345");
+  });
+
+  test("check-in is refused while payment is pending", async () => {
+    await request(app)
+      .patch(`/api/admin/events/${premiumEvent._id}/checkin-open`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ checkInOpen: true })
+      .expect(200);
+
+    const reg = await EventRegistration.findOne({ eventId: premiumEvent._id, userId: attendee.user._id });
+    const res = await request(app)
+      .post(`/api/events/${premiumEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.registrationCode })
+      .expect(403);
+    assert.equal(res.body.error.code, "PAYMENT_REQUIRED");
+  });
+
+  test("admin confirms payment, then check-in succeeds and is logged", async () => {
+    const reg = await EventRegistration.findOne({ eventId: premiumEvent._id, userId: attendee.user._id });
+
+    const confirmed = await request(app)
+      .patch(`/api/admin/events/${premiumEvent._id}/registrations/${reg._id}/payment`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ paymentStatus: "paid" })
+      .expect(200);
+    assert.equal(confirmed.body.registration.paymentStatus, "paid");
+
+    await request(app)
+      .post(`/api/events/${premiumEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.registrationCode })
+      .expect(200);
+
+    const feed = await request(app)
+      .get("/api/admin/activity")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+    const entry = feed.body.activity.find((a) => a.action === "registration.payment_paid");
+    assert.ok(entry, "expected a registration.payment_paid activity entry");
+  });
+
+  test("admin event list includes payment stats for the premium event", async () => {
+    const res = await request(app)
+      .get("/api/admin/events")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+    const found = res.body.events.find((e) => String(e._id) === String(premiumEvent._id));
+    assert.ok(found, "expected the premium event in the admin list");
+    assert.equal(found.paidCount, 1);
+    assert.equal(found.revenue, 10);
+  });
+});

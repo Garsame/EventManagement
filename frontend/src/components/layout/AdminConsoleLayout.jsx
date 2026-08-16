@@ -11,6 +11,7 @@ const ICONS = {
   messages: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z" strokeLinecap="round" strokeLinejoin="round" />,
   profile: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" strokeLinecap="round" strokeLinejoin="round" />,
   reports: <path d="M9 17V9m3 8V5m3 12v-6M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" strokeLinecap="round" strokeLinejoin="round" />,
+  premium: <path d="M12 2.5l2.6 5.6 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6-4.4-4.2 6-.8Z" strokeLinecap="round" strokeLinejoin="round" />,
 };
 
 const NAV_GROUPS = [
@@ -25,6 +26,7 @@ const NAV_GROUPS = [
     label: "Content",
     items: [
       { to: "/maamul/events", label: "Events", icon: ICONS.events },
+      { to: "/maamul/premium-events", label: "Premium Events", icon: ICONS.premium },
       { to: "/maamul/checkin", label: "Check-in", icon: ICONS.checkin },
     ],
   },

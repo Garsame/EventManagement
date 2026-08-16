@@ -20,6 +20,18 @@ const eventSchema = new mongoose.Schema({
   checkInOpen: { type: Boolean, default: false },
   coverImageUrl: { type: String, default: "" },
   coverImagePublicId: { type: String, default: "" },
+  // Premium events require a paid plan to register. isPremium is set only at
+  // creation (the two admin console pages never cross-send it), plans stay
+  // editable afterwards but a plan already chosen by a registrant is
+  // snapshotted onto the registration, so editing/removing a plan here never
+  // retroactively changes what someone already registered and paid for.
+  isPremium: { type: Boolean, default: false },
+  currency: { type: String, default: "USD", trim: true },
+  plans: [{
+    name: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    description: { type: String, default: "" },
+  }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   // Photographers an admin has put on this event. Only these (and admins) may
   // upload or delete its media.

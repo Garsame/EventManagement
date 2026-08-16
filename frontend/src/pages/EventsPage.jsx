@@ -5,6 +5,7 @@ import Loading from "../components/ui/Loading.jsx";
 import Input from "../components/ui/Input.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
 import EventCard from "../components/EventCard.jsx";
+import PremiumEventCard from "../components/PremiumEventCard.jsx";
 
 const coverFor = (event) => event.coverImageUrl || `https://picsum.photos/seed/${event._id}/500/500`;
 
@@ -115,7 +116,7 @@ export default function EventsPage() {
             ) : (
               <div className="grid grid-3">
                 {filtered.map((e) => (
-                  <EventCard key={e._id} event={e} />
+                  e.isPremium ? <PremiumEventCard key={e._id} event={e} /> : <EventCard key={e._id} event={e} />
                 ))}
               </div>
             )

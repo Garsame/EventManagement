@@ -6,6 +6,7 @@ import Card from "../../components/ui/Card.jsx";
 import Input from "../../components/ui/Input.jsx";
 import Alert from "../../components/ui/Alert.jsx";
 import Badge from "../../components/ui/Badge.jsx";
+import Button from "../../components/ui/Button.jsx";
 import Loading from "../../components/ui/Loading.jsx";
 import Avatar from "../../components/Avatar.jsx";
 
@@ -20,15 +21,19 @@ const FILTERS = [
   { key: "not-attended", label: "Not checked in" },
 ];
 
+const PAYMENT_BADGE = { pending: "warn", paid: "success", refunded: "neutral" };
+const PAYMENT_LABEL = { pending: "Payment pending", paid: "Paid", refunded: "Refunded" };
+
 export default function AdminEventRegistrationsPage() {
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
   const [registrations, setRegistrations] = useState([]);
-  const [counts, setCounts] = useState({ total: 0, attended: 0, notAttended: 0 });
+  const [counts, setCounts] = useState({ total: 0, attended: 0, notAttended: 0, paid: 0, pendingPayment: 0, revenue: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
+  const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -43,6 +48,33 @@ export default function AdminEventRegistrationsPage() {
       .catch((err) => setError(err.response?.data?.error?.message || "Could not load registrations"))
       .finally(() => setLoading(false));
   }, [eventId]);
+
+  const setPayment = async (registrationId, paymentStatus) => {
+    setBusyId(registrationId);
+    setError("");
+    try {
+      const res = await adminClient.patch(
+        `/api/admin/events/${eventId}/registrations/${registrationId}/payment`,
+        { paymentStatus }
+      );
+      setRegistrations((prev) => prev.map((r) => (r.id === registrationId ? { ...r, ...res.data.registration } : r)));
+      setCounts((prev) => {
+        const wasPaid = registrations.find((r) => r.id === registrationId)?.paymentStatus === "paid";
+        const wasPending = registrations.find((r) => r.id === registrationId)?.paymentStatus === "pending";
+        const amount = registrations.find((r) => r.id === registrationId)?.amountDue || 0;
+        return {
+          ...prev,
+          paid: prev.paid + (paymentStatus === "paid" ? 1 : 0) - (wasPaid ? 1 : 0),
+          pendingPayment: prev.pendingPayment + (paymentStatus === "pending" ? 1 : 0) - (wasPending ? 1 : 0),
+          revenue: prev.revenue + (paymentStatus === "paid" ? amount : 0) - (wasPaid ? amount : 0),
+        };
+      });
+    } catch (err) {
+      setError(err.response?.data?.error?.message || "Could not update payment status");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const visible = useMemo(() => {
     let list = registrations;
@@ -63,7 +95,11 @@ export default function AdminEventRegistrationsPage() {
     <AdminConsoleLayout
       title="Registrations"
       subtitle={event ? event.title : "Loading event…"}
-      actions={<Link to="/maamul/events" className="btn btn-ghost">Back to events</Link>}
+      actions={
+        <Link to={event?.isPremium ? "/maamul/premium-events" : "/maamul/events"} className="btn btn-ghost">
+          Back to events
+        </Link>
+      }
     >
       {loading && <Loading />}
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
@@ -84,6 +120,22 @@ export default function AdminEventRegistrationsPage() {
               <div className="stat-label">Not checked in</div>
               <div className="stat-value">{counts.notAttended}</div>
             </div>
+            {event?.isPremium && (
+              <>
+                <div className="stat-card">
+                  <div className="stat-label">Paid</div>
+                  <div className="stat-value">{counts.paid}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Pending payment</div>
+                  <div className="stat-value">{counts.pendingPayment}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Revenue</div>
+                  <div className="stat-value">{event.currency || "USD"} {counts.revenue}</div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 flex-wrap items-end mb-5">
@@ -123,6 +175,9 @@ export default function AdminEventRegistrationsPage() {
                         {r.attended
                           ? <Badge variant="success">✓ Checked in</Badge>
                           : <Badge variant="neutral">Not yet</Badge>}
+                        {event?.isPremium && (
+                          <Badge variant={PAYMENT_BADGE[r.paymentStatus] || "neutral"}>{PAYMENT_LABEL[r.paymentStatus] || r.paymentStatus}</Badge>
+                        )}
                       </div>
                       <p className="text-muted m-0 mt-0.5 text-sm truncate">
                         {r.user?.email}
@@ -137,6 +192,32 @@ export default function AdminEventRegistrationsPage() {
                           <> · Checked in {formatDateTime(r.checkedInAt)}{r.checkedInBy ? ` by ${r.checkedInBy.fullName}` : ""}</>
                         )}
                       </p>
+                      {event?.isPremium && (
+                        <div className="mt-2">
+                          <p className="text-sm m-0">
+                            <strong>{r.planName || "No plan"}</strong>
+                            {r.amountDue != null && <> — {r.currency || event.currency || "USD"} {r.amountDue}</>}
+                            {r.paymentReference && <span className="text-muted"> · ref: {r.paymentReference}</span>}
+                          </p>
+                          <div className="flex gap-2 flex-wrap mt-1.5">
+                            {r.paymentStatus !== "paid" && (
+                              <Button type="button" variant="ghost" onClick={() => setPayment(r.id, "paid")} disabled={busyId === r.id}>
+                                Mark paid
+                              </Button>
+                            )}
+                            {r.paymentStatus !== "pending" && (
+                              <Button type="button" variant="ghost" onClick={() => setPayment(r.id, "pending")} disabled={busyId === r.id}>
+                                Mark pending
+                              </Button>
+                            )}
+                            {r.paymentStatus !== "refunded" && (
+                              <Button type="button" variant="ghost" onClick={() => setPayment(r.id, "refunded")} disabled={busyId === r.id}>
+                                Mark refunded
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-[10px] uppercase font-bold text-muted mb-1">Serial / QR code</div>

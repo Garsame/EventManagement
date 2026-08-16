@@ -8,6 +8,7 @@ import SectionHeader from "../components/ui/SectionHeader.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
 import Hero from "../components/Hero.jsx";
 import EventCard from "../components/EventCard.jsx";
+import PremiumEventCard from "../components/PremiumEventCard.jsx";
 import IconBadge from "../components/IconBadge.jsx";
 
 const valueProps = [
@@ -73,7 +74,7 @@ export default function PublicEventsPage() {
             ) : (
               <div className="grid grid-3">
                 {featured.map((e) => (
-                  <EventCard key={e._id} event={e} />
+                  e.isPremium ? <PremiumEventCard key={e._id} event={e} /> : <EventCard key={e._id} event={e} />
                 ))}
               </div>
             )

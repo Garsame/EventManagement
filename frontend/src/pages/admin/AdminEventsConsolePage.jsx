@@ -22,15 +22,19 @@ const toLocalInput = (v) => {
   return new Date(d.getTime() - off).toISOString().slice(0, 16);
 };
 
-const EMPTY = {
+const BASE_EMPTY = {
   title: "", description: "", location: "",
   startDateTime: "", endDateTime: "", visibility: "public", status: "draft",
 };
+// Non-premium form state never carries currency/plans keys at all, so the
+// standard console never sends them - only the premium page seeds these.
+const emptyForm = (premium) =>
+  premium ? { ...BASE_EMPTY, currency: "USD", plans: [{ name: "", price: "", description: "" }] } : { ...BASE_EMPTY };
 
 const STATUS_BADGE = { draft: "neutral", "registration-open": "success", completed: "info" };
 const STATUS_LABEL = { draft: "Draft", "registration-open": "Registration open", completed: "Completed" };
 
-export default function AdminEventsConsolePage() {
+export default function AdminEventsConsolePage({ premium = false }) {
   const [events, setEvents] = useState([]);
   const [photographers, setPhotographers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +45,7 @@ export default function AdminEventsConsolePage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState(() => emptyForm(premium));
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [changingEventId, setChangingEventId] = useState(null);
@@ -74,12 +78,12 @@ export default function AdminEventsConsolePage() {
   useEffect(() => { load(); }, [load]);
 
   const visible = useMemo(() => {
-    let list = events;
+    let list = events.filter((e) => !!e.isPremium === premium);
     if (statusFilter !== "all") list = list.filter((e) => e.status === statusFilter);
     const q = filter.trim().toLowerCase();
     if (q) list = list.filter((e) => [e.title, e.location].filter(Boolean).some((s) => s.toLowerCase().includes(q)));
     return list;
-  }, [events, filter, statusFilter]);
+  }, [events, filter, statusFilter, premium]);
 
   const resetCover = () => {
     setCoverFile(null);
@@ -89,7 +93,7 @@ export default function AdminEventsConsolePage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY);
+    setForm(emptyForm(premium));
     resetCover();
     setError("");
     setModalOpen(true);
@@ -105,6 +109,14 @@ export default function AdminEventsConsolePage() {
       endDateTime: toLocalInput(event.endDateTime),
       visibility: event.visibility || "public",
       status: event.status || "draft",
+      ...(premium
+        ? {
+            currency: event.currency || "USD",
+            plans: (event.plans || []).length
+              ? event.plans.map((p) => ({ name: p.name, price: String(p.price), description: p.description || "" }))
+              : [{ name: "", price: "", description: "" }],
+          }
+        : {}),
     });
     resetCover();
     setCoverPreview(event.coverImageUrl || "");
@@ -113,6 +125,11 @@ export default function AdminEventsConsolePage() {
   };
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const updatePlan = (index, field, value) =>
+    setForm((p) => ({ ...p, plans: p.plans.map((plan, i) => (i === index ? { ...plan, [field]: value } : plan)) }));
+  const addPlan = () => setForm((p) => ({ ...p, plans: [...p.plans, { name: "", price: "", description: "" }] }));
+  const removePlan = (index) => setForm((p) => ({ ...p, plans: p.plans.filter((_, i) => i !== index) }));
 
   const handleCoverPick = (e) => {
     const file = e.target.files?.[0];
@@ -131,6 +148,15 @@ export default function AdminEventsConsolePage() {
         startDateTime: new Date(form.startDateTime).toISOString(),
         endDateTime: new Date(form.endDateTime).toISOString(),
       };
+      if (premium) {
+        payload.isPremium = true;
+        payload.currency = form.currency || "USD";
+        payload.plans = form.plans.map((p) => ({
+          name: p.name.trim(),
+          price: Number(p.price),
+          description: p.description.trim(),
+        }));
+      }
 
       let eventId = editingId;
       if (editingId) {
@@ -215,9 +241,9 @@ export default function AdminEventsConsolePage() {
 
   return (
     <AdminConsoleLayout
-      title="Events"
-      subtitle={`${events.length} event(s)`}
-      actions={<Button type="button" onClick={openCreate}>+ Create a new event</Button>}
+      title={premium ? "Premium Events" : "Events"}
+      subtitle={`${events.filter((e) => !!e.isPremium === premium).length} event(s)`}
+      actions={<Button type="button" onClick={openCreate}>{premium ? "+ Create a premium event" : "+ Create a new event"}</Button>}
     >
       {message && <Alert variant="success" className="mb-4">{message}</Alert>}
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
@@ -268,12 +294,30 @@ export default function AdminEventsConsolePage() {
                     </div>
                   </div>
 
+                  {premium && (
+                    <div className="flex gap-2 flex-wrap mt-2">
+                      {(event.plans || []).map((p) => (
+                        <Badge key={p._id || p.name} variant="premium">
+                          {p.name} — {event.currency || "USD"} {p.price}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid grid-4 mt-3">
                     <div className="card-muted !p-2"><div className="text-xs uppercase">Registered</div><strong>{event.registrationCount}</strong></div>
                     <div className="card-muted !p-2"><div className="text-xs uppercase">Attended</div><strong>{event.attendedCount}</strong></div>
                     <div className="card-muted !p-2"><div className="text-xs uppercase">Media</div><strong>{event.mediaCount}</strong></div>
                     <div className="card-muted !p-2"><div className="text-xs uppercase">Photographers</div><strong>{event.photographers.length}</strong></div>
                   </div>
+
+                  {premium && (
+                    <div className="flex gap-3 flex-wrap mt-2 text-xs text-muted">
+                      <span>Paid: <strong className="text-emerald-600 dark:text-emerald-400">{event.paidCount || 0}</strong></span>
+                      <span>Pending: <strong className="text-amber-600 dark:text-amber-400">{event.pendingPaymentCount || 0}</strong></span>
+                      <span>Revenue: <strong>{event.currency || "USD"} {event.revenue || 0}</strong></span>
+                    </div>
+                  )}
 
                   <div className="mt-3">
                     <div className="input-label mb-2">Photographer</div>
@@ -385,6 +429,54 @@ export default function AdminEventsConsolePage() {
                 </select>
               </div>
             </div>
+
+            {premium && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <label className="input-label">Participation plans</label>
+                  <Button type="button" variant="ghost" onClick={addPlan}>+ Add plan</Button>
+                </div>
+                <Input
+                  label="Currency"
+                  id="currency"
+                  name="currency"
+                  className="!max-w-[10rem]"
+                  value={form.currency}
+                  onChange={handleChange}
+                  required
+                />
+                {form.plans.map((p, i) => (
+                  <div key={i} className="card-muted mt-2">
+                    <div className="two-col">
+                      <Input
+                        label="Plan name"
+                        value={p.name}
+                        onChange={(e) => updatePlan(i, "name", e.target.value)}
+                        required
+                      />
+                      <Input
+                        label={`Price (${form.currency || "USD"})`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={p.price}
+                        onChange={(e) => updatePlan(i, "price", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <Input
+                      label="Description (optional)"
+                      value={p.description}
+                      onChange={(e) => updatePlan(i, "description", e.target.value)}
+                    />
+                    {form.plans.length > 1 && (
+                      <Button type="button" variant="ghost" onClick={() => removePlan(i)}>Remove plan</Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {error && <Alert variant="error">{error}</Alert>}
             <div className="flex gap-2 mt-2">
               <Button type="submit" disabled={saving}>{saving ? "Saving…" : editingId ? "Save changes" : "Create event"}</Button>

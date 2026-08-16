@@ -204,6 +204,10 @@ export const getMyRegistrations = async (req, res, next) => {
           stage,
           mediaCount,
           hasEnded,
+          planName: reg.planName || "",
+          amountDue: reg.amountDue ?? null,
+          currency: reg.currency || "",
+          paymentStatus: reg.paymentStatus,
           event: {
             id: event._id,
             title: event.title,
@@ -213,6 +217,7 @@ export const getMyRegistrations = async (req, res, next) => {
             endDateTime: event.endDateTime,
             published: event.published,
             visibility: event.visibility,
+            isPremium: event.isPremium,
           },
         };
       });

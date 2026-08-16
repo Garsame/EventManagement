@@ -35,7 +35,9 @@ export const stageMessage = (item) => {
   if (item.stage === "checked-in") {
     return "You are checked in. Photos appear here once the team uploads them.";
   }
-  return item.hasEnded
-    ? "This event has ended and you were not checked in."
-    : "Bring your QR code to the event so staff can check you in.";
+  if (item.hasEnded) return "This event has ended and you were not checked in.";
+  if (item.event?.isPremium && item.paymentStatus === "pending") {
+    return "Awaiting payment confirmation. Bring your QR code once payment is confirmed - check-in opens after that.";
+  }
+  return "Bring your QR code to the event so staff can check you in.";
 };
