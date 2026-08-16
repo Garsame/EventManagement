@@ -5,6 +5,7 @@ import User, { EDUCATION_LEVELS, SEX_OPTIONS, toUserDTO } from "../models/User.j
 import EventRegistration from "../models/EventRegistration.js";
 import Event from "../models/Event.js";
 import { sendAccountCredentialsEmail } from "../config/mailer.js";
+import { logActivity } from "../utils/activityLog.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -162,6 +163,15 @@ export const createUser = async (req, res, next) => {
       }
     }
 
+    await logActivity({
+      actor: req.user,
+      action: "user.created",
+      summary: `Created ${role} account for ${fullName} (${email})`,
+      targetType: "user",
+      targetId: user._id,
+      targetLabel: fullName,
+    });
+
     return res.status(201).json({
       user: toUserDTO(user.toObject()),
       emailDelivered: delivered,
@@ -218,6 +228,16 @@ export const updateUser = async (req, res, next) => {
 
     const user = await User.findByIdAndUpdate(req.params.userId, updates, { new: true, runValidators: true }).lean();
     if (!user) return res.status(404).json(formatError("NOT_FOUND", "User not found"));
+
+    await logActivity({
+      actor: req.user,
+      action: "user.updated",
+      summary: `Updated ${Object.keys(updates).join(", ")} for ${user.fullName}`,
+      targetType: "user",
+      targetId: user._id,
+      targetLabel: user.fullName,
+    });
+
     return res.json({ user: toUserDTO(user) });
   } catch (err) {
     return next(err);
@@ -256,6 +276,15 @@ export const setUserPassword = async (req, res, next) => {
       }
     }
 
+    await logActivity({
+      actor: req.user,
+      action: "user.password_reset",
+      summary: `Set a new password for ${user.fullName} (${user.email})`,
+      targetType: "user",
+      targetId: user._id,
+      targetLabel: user.fullName,
+    });
+
     return res.json({
       success: true,
       emailDelivered: delivered,
@@ -291,6 +320,15 @@ export const setUserStatus = async (req, res, next) => {
     if (!isActive) user.refreshTokens = [];
     await user.save();
 
+    await logActivity({
+      actor: req.user,
+      action: isActive ? "user.activated" : "user.deactivated",
+      summary: `${isActive ? "Activated" : "Deactivated"} ${user.fullName} (${user.email})`,
+      targetType: "user",
+      targetId: user._id,
+      targetLabel: user.fullName,
+    });
+
     return res.json({ user: toUserDTO(user.toObject()) });
   } catch (err) {
     return next(err);
@@ -319,7 +357,17 @@ export const deleteUser = async (req, res, next) => {
 
     const regResult = await EventRegistration.deleteMany({ userId });
     await Event.updateMany({ photographers: userId }, { $pull: { photographers: userId } });
+    const { fullName, email, role } = user;
     await user.deleteOne();
+
+    await logActivity({
+      actor: req.user,
+      action: "user.deleted",
+      summary: `Deleted ${role} account for ${fullName} (${email})`,
+      targetType: "user",
+      targetId: userId,
+      targetLabel: fullName,
+    });
 
     return res.json({ success: true, deleted: { registrations: regResult.deletedCount } });
   } catch (err) {

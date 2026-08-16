@@ -1007,3 +1007,68 @@ describe("contact form and admin messages", () => {
       .expect(400);
   });
 });
+
+describe("activity log", () => {
+  test("a photographer cannot read the activity feed", async () => {
+    await request(app)
+      .get("/api/admin/activity")
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .expect(403);
+  });
+
+  test("creating a user is recorded and readable by an admin", async () => {
+    const created = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ fullName: "Logged User", email: "logged-user@test.local", role: "attendee", sendEmail: false })
+      .expect(201);
+
+    const feed = await request(app)
+      .get("/api/admin/activity")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+
+    const entry = feed.body.activity.find((a) => a.action === "user.created" && a.targetLabel === "Logged User");
+    assert.ok(entry, "expected a user.created entry for the new account");
+    assert.match(entry.summary, /Logged User/);
+    assert.equal(entry.actorRole, "admin");
+    assert.ok(feed.body.actions.includes("user.created"));
+
+    await User.deleteOne({ _id: created.body.user.id });
+  });
+
+  test("checking a guest in is recorded with the guest and event named", async () => {
+    const checkinAttendee = await makeUser("attendee", "logged-checkin@test.local");
+    const reg = await request(app)
+      .post(`/api/events/${event._id}/register`)
+      .set("Authorization", `Bearer ${checkinAttendee.token}`)
+      .expect(201);
+
+    await request(app)
+      .post(`/api/events/${event._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.body.registration.registrationCode })
+      .expect(200);
+
+    const feed = await request(app)
+      .get("/api/admin/activity")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .expect(200);
+
+    const entry = feed.body.activity.find(
+      (a) => a.action === "registration.checked_in" && a.summary.includes("logged-checkin@test.local")
+    );
+    assert.ok(entry, "expected a registration.checked_in entry naming the guest");
+    assert.match(entry.summary, /Gate Test Event/);
+  });
+
+  test("q filters by summary, actor, or target text", async () => {
+    const feed = await request(app)
+      .get("/api/admin/activity")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .query({ q: "logged-checkin@test.local" })
+      .expect(200);
+    assert.ok(feed.body.activity.length >= 1);
+    assert.ok(feed.body.activity.every((a) => JSON.stringify(a).includes("logged-checkin")));
+  });
+});

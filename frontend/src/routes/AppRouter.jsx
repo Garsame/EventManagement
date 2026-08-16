@@ -27,6 +27,7 @@ import AdminCheckInConsolePage from "../pages/admin/AdminCheckInConsolePage.jsx"
 import AdminMediaManagePage from "../pages/admin/AdminMediaManagePage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage.jsx";
 import AdminMessagesPage from "../pages/admin/AdminMessagesPage.jsx";
+import AdminReportsPage from "../pages/admin/AdminReportsPage.jsx";
 
 import PhotographerEventsPage from "../pages/photographer/PhotographerEventsPage.jsx";
 import PhotographerMediaManagePage from "../pages/photographer/PhotographerMediaManagePage.jsx";
@@ -75,6 +76,7 @@ export default function AppRouter() {
       <Route path="/maamul/checkin" element={<AdminGuard><AdminCheckInConsolePage /></AdminGuard>} />
       <Route path="/maamul/profile" element={<AdminGuard><AdminProfilePage /></AdminGuard>} />
       <Route path="/maamul/messages" element={<AdminGuard><AdminMessagesPage /></AdminGuard>} />
+      <Route path="/maamul/reports" element={<AdminGuard><AdminReportsPage /></AdminGuard>} />
 
       {/* ---- Photographer realm: sign-in only, accounts made by an admin ---- */}
       <Route path="/photographer/login" element={<PhotographerLoginPage />} />

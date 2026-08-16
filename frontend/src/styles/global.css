@@ -111,6 +111,12 @@
   .input-label { @apply font-semibold text-slate-700 text-sm dark:text-slate-300; }
   .with-icon { @apply pl-10; }
   .input-icon { @apply absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400; }
+  .with-icon-right { @apply pr-11; }
+  .input-icon-toggle {
+    @apply absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center rounded-lg
+           text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors
+           dark:hover:text-slate-200 dark:hover:bg-slate-800;
+  }
   .input-error { @apply border-rose-400 dark:border-rose-500; }
   .error-text { @apply text-rose-600 text-sm dark:text-rose-400; }
   .helper-text { @apply text-slate-500 text-sm dark:text-slate-400; }

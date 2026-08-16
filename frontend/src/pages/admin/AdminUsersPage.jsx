@@ -253,7 +253,7 @@ export default function AdminUsersPage() {
                 onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} required />
               <Input label="Phone" id="c-phone" value={createForm.phone}
                 onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))} placeholder="Optional" />
-              <Input label="Password" id="c-password" type="text" value={createForm.password}
+              <Input label="Password" id="c-password" type="password" value={createForm.password}
                 onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
                 placeholder="Leave blank to auto-generate" helper="No OTP step for admin-created accounts." />
               <label className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300 mb-4">
@@ -338,7 +338,7 @@ function PasswordModal({ user, result, sending, onSubmit, onClose }) {
     <Modal title={`Set password for ${user.fullName}`} onClose={onClose}>
       {!result ? (
         <form onSubmit={(e) => { e.preventDefault(); onSubmit(custom, sendEmail); }}>
-          <Input label="New password" id="p-password" value={custom} onChange={(e) => setCustom(e.target.value)}
+          <Input label="New password" id="p-password" type="password" value={custom} onChange={(e) => setCustom(e.target.value)}
             placeholder="Leave blank to auto-generate" minLength={custom ? 6 : undefined} />
           <label className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300 mb-4">
             <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="w-4 h-4 accent-brand-600" />

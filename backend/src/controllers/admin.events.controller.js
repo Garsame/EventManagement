@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import Media from "../models/Media.js";
 import EventRegistration from "../models/EventRegistration.js";
 import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
+import { logActivity } from "../utils/activityLog.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -104,6 +105,16 @@ export const createEvent = async (req, res, next) => {
     const { payload, error } = validateEventPayload(req.body);
     if (error) return res.status(400).json(error);
     const event = await Event.create({ ...payload, createdBy: req.user.userId, photographers: [] });
+
+    await logActivity({
+      actor: req.user,
+      action: "event.created",
+      summary: `Created event "${event.title}"`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
     return res.status(201).json(event);
   } catch (err) {
     return next(err);
@@ -119,6 +130,16 @@ export const updateEvent = async (req, res, next) => {
       .populate("photographers", "fullName email avatarUrl")
       .lean();
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    await logActivity({
+      actor: req.user,
+      action: "event.updated",
+      summary: `Updated ${Object.keys(payload).join(", ")} on "${event.title}"`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
     return res.json({ ...event, photographers: (event.photographers || []).map(photographerDTO) });
   } catch (err) {
     return next(err);
@@ -189,6 +210,17 @@ export const setEventPhotographers = async (req, res, next) => {
       .lean();
 
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    const names = (event.photographers || []).map((p) => p.fullName).join(", ") || "no one";
+    await logActivity({
+      actor: req.user,
+      action: "event.photographers_assigned",
+      summary: `Set photographers on "${event.title}" to: ${names}`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
     return res.json({ ...event, photographers: (event.photographers || []).map(photographerDTO) });
   } catch (err) {
     return next(err);
@@ -215,7 +247,17 @@ export const deleteEvent = async (req, res, next) => {
       Media.deleteMany({ eventId }),
       EventRegistration.deleteMany({ eventId }),
     ]);
+    const title = event.title;
     await event.deleteOne();
+
+    await logActivity({
+      actor: req.user,
+      action: "event.deleted",
+      summary: `Deleted event "${title}" (${mediaResult.deletedCount} media, ${regResult.deletedCount} registrations)`,
+      targetType: "event",
+      targetId: eventId,
+      targetLabel: title,
+    });
 
     return res.json({
       success: true,
