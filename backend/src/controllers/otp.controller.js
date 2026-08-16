@@ -214,10 +214,117 @@ export const changePasswordWithOtp = async (req, res, next) => {
   }
 };
 
+/**
+ * Step 1 of password recovery for someone who is locked out entirely (as
+ * opposed to requestPasswordOtp above, which is the in-account self-service
+ * change for someone who is already signed in). Deliberately realm-agnostic:
+ * whoever owns the email gets the code, regardless of whether they arrived
+ * from the attendee, admin, or photographer login page - the frontend page
+ * just needs to know which login path to send them back to afterward.
+ *
+ * The response is identical whether or not the email is registered, so this
+ * endpoint can't be used to test which addresses have accounts.
+ */
+export const forgotPasswordRequest = async (req, res, next) => {
+  try {
+    const email = normalise(req.body?.email);
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "A valid email is required"));
+    }
+
+    const user = await User.findOne({ email });
+    let devCode;
+
+    if (user) {
+      await Otp.deleteMany({ email, purpose: "password-reset" });
+      const code = generateCode();
+      await Otp.create({
+        email,
+        purpose: "password-reset",
+        codeHash: hashCode(code),
+        payload: { userId: user._id },
+        expiresAt: expiryDate(),
+      });
+      try {
+        const result = await sendOtpEmail({ to: email, code, purpose: "password-reset" });
+        devCode = result.devCode;
+      } catch (err) {
+        console.warn("Could not send password-reset email:", err.message);
+      }
+    }
+
+    return res.json({
+      message: "If that email is registered, a reset code has been sent to it.",
+      expiresInMinutes: OTP_TTL_MINUTES,
+      // Only ever present when SMTP is unconfigured (local dev). This does
+      // mean the key's presence leaks whether the account exists in that one
+      // no-mail-configured case; every deployment with real email sending
+      // never has this field at all, which is the case that actually matters.
+      ...(devCode ? { devCode } : {}),
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/** Step 2: verify the code and set a new password. No session is issued -
+ * the caller does not know which realm's login to authenticate into, so it
+ * sends the user back to sign in normally instead. */
+export const forgotPasswordVerify = async (req, res, next) => {
+  try {
+    const email = normalise(req.body?.email);
+    const { code, newPassword } = req.body || {};
+    if (!email || !code || !newPassword) {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "email, code, and newPassword are required"));
+    }
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "Password must be at least 6 characters"));
+    }
+
+    const otp = await Otp.findOne({ email, purpose: "password-reset" });
+    if (!otp || otp.expiresAt < new Date()) {
+      return res.status(400).json(formatError("OTP_EXPIRED", "That code has expired. Request a new one."));
+    }
+    if (otp.attempts >= MAX_ATTEMPTS) {
+      return res.status(429).json(formatError("OTP_ATTEMPTS_EXCEEDED", "Too many incorrect attempts. Request a new code."));
+    }
+    if (!codeMatches(code, otp.codeHash)) {
+      otp.attempts += 1;
+      await otp.save();
+      return res.status(400).json({
+        error: {
+          code: "OTP_INVALID",
+          message: "Wrong OTP. Check the code in your email and try again.",
+          attemptsLeft: Math.max(0, MAX_ATTEMPTS - otp.attempts),
+        },
+      });
+    }
+
+    const user = await User.findById(otp.payload.userId);
+    if (!user) {
+      await otp.deleteOne();
+      return res.status(404).json(formatError("NOT_FOUND", "That account no longer exists"));
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    // A password only an attacker with mailbox access could have reset
+    // should not leave a legitimate session standing either way - end them all.
+    user.refreshTokens = [];
+    await user.save();
+    await otp.deleteOne();
+
+    return res.json({ success: true });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export default {
   requestSignupOtp,
   cancelSignupOtp,
   verifySignupOtp,
   requestPasswordOtp,
   changePasswordWithOtp,
+  forgotPasswordRequest,
+  forgotPasswordVerify,
 };

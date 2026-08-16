@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Card from "../components/ui/Card.jsx";
 import Input from "../components/ui/Input.jsx";
 import Button from "../components/ui/Button.jsx";
@@ -51,6 +51,11 @@ export default function MaamulLoginPage() {
           <form onSubmit={handleSubmit}>
             <Input label="Email" id="email" name="email" type="email" value={form.email} onChange={handleChange} required autoFocus />
             <Input label="Password" id="password" name="password" type="password" value={form.password} onChange={handleChange} required />
+            <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", textAlign: "right" }}>
+              <Link to="/maamul/forgot-password" className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+                Forgot password?
+              </Link>
+            </p>
             {error && <Alert variant="error">{error}</Alert>}
             <Button type="submit" disabled={loading} style={{ width: "100%", marginTop: "0.5rem" }}>
               {loading ? "Signing in…" : "Sign in"}

@@ -18,6 +18,12 @@ process.env.SMTP_USER = "";
 process.env.SMTP_PASSWORD = "";
 process.env.MANAGEMENT_EMAIL = "";
 
+// The suite runs a lot of requests through auth-adjacent routes across many
+// tests, all sharing one 15-minute rate-limit window. No test here asserts
+// that a limiter actually fires, so leaving it on just made results depend
+// on request order rather than correctness. See middleware/rateLimit.js.
+process.env.DISABLE_RATE_LIMIT = "true";
+
 // Point at a throwaway database before anything opens a connection. config/db.js
 // honours MONGO_DB_NAME, so the developer's real data is never touched.
 process.env.MONGO_DB_NAME = "event_media_test";
@@ -722,6 +728,107 @@ describe("password change by emailed code", () => {
       .post("/api/auth/password/change")
       .set("Authorization", `Bearer ${outsider.token}`)
       .send({ code: "123456", newPassword: "abc" })
+      .expect(400);
+  });
+});
+
+describe("forgot password (no session required)", () => {
+  test("requesting for an email that is not registered still returns 200 with no devCode", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: "nobody-here@test.local" })
+      .expect(200);
+    assert.equal(res.body.devCode, undefined, "no code should be issued for an unregistered email");
+  });
+
+  test("requesting for a registered email returns a code (SMTP is off in tests)", async () => {
+    const locked = await makeUser("attendee", "locked-out@test.local");
+    const res = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: "locked-out@test.local" })
+      .expect(200);
+    assert.ok(res.body.devCode, "expected a devCode for a registered email");
+
+    // Same response shape either way - this is the anti-enumeration property.
+    const unregistered = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: "still-nobody@test.local" })
+      .expect(200);
+    assert.equal(Object.keys(unregistered.body).sort().join(","), "expiresInMinutes,message");
+    void locked;
+  });
+
+  test("a wrong code is rejected without touching the password", async () => {
+    const target = await makeUser("attendee", "wrong-code-target@test.local");
+    await request(app).post("/api/auth/forgot-password/request").send({ email: target.user.email }).expect(200);
+
+    const before = await User.findById(target.user._id).lean();
+    const res = await request(app)
+      .post("/api/auth/forgot-password/verify")
+      .send({ email: target.user.email, code: "000000", newPassword: "WhateverNew123" })
+      .expect(400);
+    assert.equal(res.body.error.code, "OTP_INVALID");
+
+    const after = await User.findById(target.user._id).lean();
+    assert.equal(before.passwordHash, after.passwordHash);
+  });
+
+  test("the correct code resets the password, revokes sessions, and issues no tokens", async () => {
+    const target = await makeUser("attendee", "reset-target@test.local");
+    // Give the account a real refresh token first, as if they were logged in
+    // on another device, so revocation can be checked.
+    await User.updateOne({ _id: target.user._id }, { $push: { refreshTokens: "some-stale-refresh-token" } });
+
+    const start = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: target.user.email })
+      .expect(200);
+
+    const res = await request(app)
+      .post("/api/auth/forgot-password/verify")
+      .send({ email: target.user.email, code: start.body.devCode, newPassword: "BrandNewReset123" })
+      .expect(200);
+
+    assert.deepEqual(res.body, { success: true }, "no session should be issued - the caller doesn't know which realm to log into");
+
+    const after = await User.findById(target.user._id).lean();
+    assert.equal(after.refreshTokens.length, 0, "existing sessions must be revoked");
+
+    // The new password actually works at the real login endpoint.
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: target.user.email, password: "BrandNewReset123" })
+      .expect(200);
+    assert.ok(login.body.accessToken);
+  });
+
+  test("a used or expired code cannot be replayed", async () => {
+    const target = await makeUser("attendee", "replay-target@test.local");
+    const start = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: target.user.email })
+      .expect(200);
+
+    await request(app)
+      .post("/api/auth/forgot-password/verify")
+      .send({ email: target.user.email, code: start.body.devCode, newPassword: "FirstReset123" })
+      .expect(200);
+
+    await request(app)
+      .post("/api/auth/forgot-password/verify")
+      .send({ email: target.user.email, code: start.body.devCode, newPassword: "SecondReset123" })
+      .expect(400);
+  });
+
+  test("rejects a new password shorter than six characters", async () => {
+    const target = await makeUser("attendee", "short-pw-target@test.local");
+    const start = await request(app)
+      .post("/api/auth/forgot-password/request")
+      .send({ email: target.user.email })
+      .expect(200);
+    await request(app)
+      .post("/api/auth/forgot-password/verify")
+      .send({ email: target.user.email, code: start.body.devCode, newPassword: "abc" })
       .expect(400);
   });
 });

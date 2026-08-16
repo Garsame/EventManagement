@@ -5,6 +5,7 @@ import ContactPage from "../pages/ContactPage.jsx";
 import EventsPage from "../pages/EventsPage.jsx";
 import EventDetailsPage from "../pages/EventDetailsPage.jsx";
 import LoginPage from "../pages/LoginPage.jsx";
+import ForgotPasswordPage from "../pages/ForgotPasswordPage.jsx";
 import RegisterPage from "../pages/RegisterPage.jsx";
 import GalleryPage from "../pages/GalleryPage.jsx";
 import ProtectedRoute from "../components/ProtectedRoute.jsx";
@@ -15,7 +16,9 @@ import DashboardProfilePage from "../pages/DashboardProfilePage.jsx";
 
 import MaamulLoginPage from "../pages/MaamulLoginPage.jsx";
 import MaamulSignupPage from "../pages/MaamulSignupPage.jsx";
+import MaamulForgotPasswordPage from "../pages/MaamulForgotPasswordPage.jsx";
 import PhotographerLoginPage from "../pages/PhotographerLoginPage.jsx";
+import PhotographerForgotPasswordPage from "../pages/PhotographerForgotPasswordPage.jsx";
 import RealmProtectedRoute from "../components/RealmProtectedRoute.jsx";
 import { useAdminAuth } from "../context/AdminAuthContext.jsx";
 import { usePhotographerAuth } from "../context/PhotographerAuthContext.jsx";
@@ -63,11 +66,13 @@ export default function AppRouter() {
       <Route path="/dashboard/events/:eventId/gallery" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
 
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
       {/* ---- Admin realm: unguessable path, its own login, no self sign-up
           after the first admin exists ---- */}
       <Route path="/maamul/login" element={<MaamulLoginPage />} />
+      <Route path="/maamul/forgot-password" element={<MaamulForgotPasswordPage />} />
       <Route path="/maamul/signup" element={<MaamulSignupPage />} />
       <Route path="/maamul/dashboard" element={<AdminGuard><AdminOverviewPage /></AdminGuard>} />
       <Route path="/maamul/users/:group" element={<AdminGuard><AdminUsersPage /></AdminGuard>} />
@@ -80,6 +85,7 @@ export default function AppRouter() {
 
       {/* ---- Photographer realm: sign-in only, accounts made by an admin ---- */}
       <Route path="/photographer/login" element={<PhotographerLoginPage />} />
+      <Route path="/photographer/forgot-password" element={<PhotographerForgotPasswordPage />} />
       <Route path="/photographer/events" element={<PhotographerGuard><PhotographerEventsPage /></PhotographerGuard>} />
       <Route path="/photographer/events/:eventId/media" element={<PhotographerGuard><PhotographerMediaManagePage /></PhotographerGuard>} />
       <Route path="/photographer/profile" element={<PhotographerGuard><PhotographerProfilePage /></PhotographerGuard>} />
