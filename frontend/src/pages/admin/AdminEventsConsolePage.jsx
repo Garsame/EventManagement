@@ -9,6 +9,7 @@ import Alert from "../../components/ui/Alert.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Loading from "../../components/ui/Loading.jsx";
 import Modal from "../../components/ui/Modal.jsx";
+import ConfirmDialog from "../../components/ui/ConfirmDialog.jsx";
 import Avatar from "../../components/Avatar.jsx";
 
 const formatDate = (v) =>
@@ -44,6 +45,7 @@ export default function AdminEventsConsolePage() {
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [changingEventId, setChangingEventId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState("");
@@ -176,17 +178,18 @@ export default function AdminEventsConsolePage() {
     }
   };
 
-  const remove = async (event) => {
-    const warning = `Delete "${event.title}"?\n\nThis also deletes ${event.mediaCount} media file(s) and ${event.registrationCount} registration(s). This cannot be undone.`;
-    if (!window.confirm(warning)) return;
+  const confirmDelete = async () => {
+    const event = deleteTarget;
     setBusyId(event._id);
     setError("");
     try {
       const res = await adminClient.delete(`/api/admin/events/${event._id}`);
       setMessage(`Deleted "${event.title}" (${res.data.deleted.media} media, ${res.data.deleted.registrations} registrations).`);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
       setError(err.response?.data?.error?.message || "Could not delete the event");
+      setDeleteTarget(null);
     } finally {
       setBusyId(null);
     }
@@ -303,7 +306,7 @@ export default function AdminEventsConsolePage() {
                     <Link to={`/maamul/events/${event._id}/media`} className="btn btn-ghost">Manage media</Link>
                     <Link to={`/events/${event._id}`} className="btn btn-ghost">View public page</Link>
                     <Button type="button" variant="ghost" onClick={() => openEdit(event)} disabled={busyId === event._id}>Edit</Button>
-                    <Button type="button" variant="danger" onClick={() => remove(event)} disabled={busyId === event._id}>
+                    <Button type="button" variant="danger" onClick={() => setDeleteTarget(event)} disabled={busyId === event._id}>
                       {busyId === event._id ? "Working…" : "Delete"}
                     </Button>
                   </div>
@@ -360,6 +363,20 @@ export default function AdminEventsConsolePage() {
           </form>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete "${deleteTarget?.title}"?`}
+        message={
+          deleteTarget
+            ? `This also deletes ${deleteTarget.mediaCount} media file(s) and ${deleteTarget.registrationCount} registration(s). This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        loading={busyId === deleteTarget?._id}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AdminConsoleLayout>
   );
 }

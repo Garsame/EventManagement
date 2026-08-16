@@ -68,6 +68,7 @@ export default function PhotographerProfilePage() {
             <div>
               <h3 className="m-0 text-lg font-bold">{user?.fullName}</h3>
               <p className="text-muted m-0 mt-0.5">{user?.email}</p>
+              <span className="badge badge-info mt-2 capitalize">{user?.role}</span>
               <div className="mt-4">
                 <input ref={fileRef} id="photog-avatar" type="file" accept="image/*" onChange={handleAvatar} className="hidden" />
                 <label htmlFor="photog-avatar" className="btn btn-ghost cursor-pointer">
