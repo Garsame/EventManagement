@@ -4,6 +4,13 @@ import rateLimit from "express-rate-limit";
 const limitHandler = (code, message) => (req, res) =>
   res.status(429).json({ error: { code, message } });
 
+// Bypassed only when this exact env var is set. No test currently asserts
+// that a limiter actually fires - the whole suite runs many requests through
+// these same routes across many test files sharing one 15-minute window, so
+// leaving limiting on made the suite's pass/fail depend on how many other
+// tests happened to run first. Production never sets this var.
+const skipInTests = () => process.env.DISABLE_RATE_LIMIT === "true";
+
 // Brute-force protection on credential endpoints. Deliberately generous enough
 // that a live demo with repeated logins will not trip it.
 export const authLimiter = rateLimit({
@@ -11,6 +18,7 @@ export const authLimiter = rateLimit({
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipInTests,
   handler: limitHandler(
     "TOO_MANY_ATTEMPTS",
     "Too many authentication attempts. Please try again in a few minutes."
@@ -24,6 +32,7 @@ export const checkInLimiter = rateLimit({
   limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipInTests,
   handler: limitHandler(
     "TOO_MANY_ATTEMPTS",
     "Too many check-in attempts. Please slow down and try again shortly."
@@ -37,6 +46,7 @@ export const contactLimiter = rateLimit({
   limit: 8,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: skipInTests,
   handler: limitHandler(
     "TOO_MANY_ATTEMPTS",
     "Too many messages sent. Please try again in a few minutes."

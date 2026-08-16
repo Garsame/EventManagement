@@ -25,6 +25,14 @@ function Logo() {
 
 const linkClass = ({ isActive }) => (isActive ? "is-active" : undefined);
 
+// .nav-links a.is-active only styles links that are direct children of
+// .nav-links, so the mobile panel (a separate <nav>, stacked instead of
+// inline) needs its own version of the same weight/colour treatment.
+const mobileLinkClass = ({ isActive }) =>
+  `block py-3 text-base font-bold ${
+    isActive ? "text-brand-600 dark:text-brand-300" : "text-slate-700 dark:text-slate-200"
+  }`;
+
 export default function Navbar() {
   const navigate = useNavigate();
   // The public realm only ever authenticates attendees now - admin and
@@ -32,6 +40,7 @@ export default function Navbar() {
   // there is no staff branch to render here.
   const { user, isAuthed, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef(null);
 
   // Close the account menu on outside click or Escape.
@@ -51,8 +60,22 @@ export default function Navbar() {
     };
   }, [menuOpen]);
 
+  // .nav-links is hidden below md with no other way to reach it, so the
+  // mobile panel needs its own Escape handler and must close on route change
+  // (handled by the NavLink onClick below) rather than relying on the
+  // account menu's outside-click logic, which is scoped to a different ref.
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
   const handleLogout = async () => {
     setMenuOpen(false);
+    setMobileOpen(false);
     await logout();
     navigate("/login");
   };
@@ -71,6 +94,22 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            onClick={() => setMobileOpen((open) => !open)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileOpen}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {mobileOpen ? (
+                <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+              ) : (
+                <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+              )}
+            </svg>
+          </button>
+
           <ThemeToggle />
 
           {isAuthed ? (
@@ -111,15 +150,54 @@ export default function Navbar() {
               )}
             </div>
           ) : (
-            <>
+            // Hidden below md - cramming these in beside the hamburger and
+            // theme toggle overflowed at narrow widths (measured 47px at
+            // 375px signed out). They reappear in the mobile drawer instead,
+            // the same way nav-links already does.
+            <div className="hidden md:flex items-center gap-2">
               <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white px-2">
                 Log in
               </Link>
               <Link to="/register" className="btn btn-primary">Register</Link>
-            </>
+            </div>
           )}
         </div>
       </div>
+
+      {mobileOpen && (
+        <nav className="md:hidden border-t border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-950" aria-label="Mobile">
+          <div className="shell-wrap py-2 flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+            <NavLink to="/" end className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
+              Home
+            </NavLink>
+            <NavLink to="/how-it-works" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
+              How it works
+            </NavLink>
+            <NavLink to="/events" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
+              Events
+            </NavLink>
+            {isAuthed && (
+              <NavLink to="/dashboard" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
+                Dashboard
+              </NavLink>
+            )}
+            {!isAuthed && (
+              <>
+                <NavLink to="/login" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
+                  Log in
+                </NavLink>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="btn btn-primary mt-3 mb-1"
+                >
+                  Register
+                </Link>
+              </>
+            )}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

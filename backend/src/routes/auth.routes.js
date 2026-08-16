@@ -12,6 +12,8 @@ import {
 import {
   cancelSignupOtp,
   changePasswordWithOtp,
+  forgotPasswordRequest,
+  forgotPasswordVerify,
   requestPasswordOtp,
   requestSignupOtp,
   verifySignupOtp,
@@ -40,5 +42,11 @@ router.post("/signup/cancel", cancelSignupOtp);
 // Password change for a signed-in user, confirmed by an emailed code.
 router.post("/password/request-otp", authLimiter, requireAuth, requestPasswordOtp);
 router.post("/password/change", authLimiter, requireAuth, changePasswordWithOtp);
+
+// Recovery for someone who is locked out entirely - no session required.
+// Realm-agnostic: works regardless of which login page the request came
+// from, since it only needs proof of mailbox access.
+router.post("/forgot-password/request", authLimiter, forgotPasswordRequest);
+router.post("/forgot-password/verify", authLimiter, forgotPasswordVerify);
 
 export default router;

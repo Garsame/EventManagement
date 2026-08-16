@@ -65,6 +65,11 @@ export default function LoginPage() {
               required
               icon="🔒"
             />
+            <p style={{ marginTop: "-0.5rem", marginBottom: "1rem", textAlign: "right" }}>
+              <Link to="/forgot-password" className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+                Forgot password?
+              </Link>
+            </p>
             {error && <Alert variant="error">{error}</Alert>}
             <Button type="submit" disabled={loading} style={{ width: "100%", marginTop: "0.5rem" }}>
               {loading ? "Signing in..." : "Sign In"}
