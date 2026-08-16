@@ -6,15 +6,18 @@ const formatDate = (value) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export default function PremiumEventCard({ event }) {
-  const coverUrl = event.coverImageUrl || `https://picsum.photos/seed/${event._id}/640/400`;
   const prices = (event.plans || []).map((p) => p.price).filter((n) => Number.isFinite(n));
   const fromPrice = prices.length ? Math.min(...prices) : null;
   const currency = event.currency || "USD";
 
   return (
     <Card className="p-0 overflow-hidden flex flex-col border-2 border-violet-200 dark:border-violet-500/30">
-      <div className="aspect-video overflow-hidden bg-slate-100 relative">
-        <img src={coverUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+      <div className="aspect-video overflow-hidden bg-slate-100 dark:bg-slate-800 relative flex items-center justify-center">
+        {event.coverImageUrl ? (
+          <img src={event.coverImageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <span className="text-4xl text-slate-300 dark:text-slate-600" aria-hidden="true">🖼️</span>
+        )}
         <Badge variant="premium" className="!absolute top-3 left-3">★ Premium</Badge>
       </div>
       <div className="p-5 flex flex-col flex-1">

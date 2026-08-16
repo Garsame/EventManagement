@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import heroImage from "../images of the page/hero image.jpg";
 
 function HeroScene() {
   return (
@@ -105,15 +106,11 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Same treatment as PageHero's stock image elsewhere in the app -
-            fixed aspect ratio and object-cover, so it is always fully
-            contained rather than spilling past the section. */}
+        {/* Same treatment as PageHero's image elsewhere in the app - fixed
+            aspect ratio and object-cover, so it is always fully contained
+            rather than spilling past the section. */}
         <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-900/10 aspect-[4/3]">
-          <img
-            src="https://picsum.photos/seed/eventmedia-home-hero/900/700"
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          <img src={heroImage} alt="" className="w-full h-full object-cover" />
         </div>
       </div>
 
