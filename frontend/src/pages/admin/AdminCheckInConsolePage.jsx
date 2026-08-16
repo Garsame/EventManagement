@@ -45,7 +45,13 @@ export default function AdminCheckInConsolePage() {
           registrationCode: code || undefined,
           qrToken: token || undefined,
         });
-        setFeed((prev) => [{ ...res.data.registration, at: Date.now() }, ...prev].slice(0, 8));
+        const entry = {
+          ...res.data.registration,
+          guestName: res.data.guest?.fullName || "Guest",
+          guestEmail: res.data.guest?.email || "",
+          at: Date.now(),
+        };
+        setFeed((prev) => [entry, ...prev].slice(0, 8));
         setRegistrationCode("");
       } catch (err) {
         setError(err.response?.data?.error?.message || "Check-in failed");
@@ -132,17 +138,34 @@ export default function AdminCheckInConsolePage() {
         <Card>
           <h3 className="mt-0 mb-4 text-lg font-bold">Recent check-ins</h3>
           {feed.length === 0 && <p className="text-muted m-0">Nobody checked in yet this session.</p>}
-          <div className="stack gap-2.5">
-            {feed.map((r) => (
-              <div key={r._id + r.at} className="card-muted flex items-center justify-between gap-3">
-                <div>
-                  <strong className="tracking-wide">{r.registrationCode}</strong>
-                  <div className="text-xs text-muted">{new Date(r.checkedInAt).toLocaleTimeString()}</div>
+
+          {feed.length > 0 && (
+            <div className="card-muted !bg-emerald-50 !border-emerald-200 dark:!bg-emerald-500/10 dark:!border-emerald-500/30 mb-3 flex items-center gap-3">
+              <span className="text-3xl shrink-0" aria-hidden="true">✅</span>
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-400">
+                  Just checked in
                 </div>
-                <Badge variant="success">✓ Checked in</Badge>
+                <div className="font-bold text-lg truncate">{feed[0].guestName}</div>
+                <div className="text-sm text-muted tracking-widest font-semibold">{feed[0].registrationCode}</div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {feed.length > 1 && (
+            <div className="stack gap-2.5">
+              {feed.slice(1).map((r) => (
+                <div key={r._id + r.at} className="card-muted flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{r.guestName}</div>
+                    <strong className="tracking-wide text-sm text-muted">{r.registrationCode}</strong>
+                    <div className="text-xs text-muted">{new Date(r.checkedInAt).toLocaleTimeString()}</div>
+                  </div>
+                  <Badge variant="success">✓ Checked in</Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </AdminConsoleLayout>

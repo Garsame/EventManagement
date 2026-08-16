@@ -22,13 +22,32 @@ export default function QrScanner({ onScan, onError }) {
 
   useEffect(() => {
     let cancelled = false;
-    const scanner = new Html5Qrcode(READER_ID);
+    const scanner = new Html5Qrcode(READER_ID, { verbose: false });
     scannerRef.current = scanner;
+
+    const stopAndClear = () => {
+      if (scanner.isScanning) {
+        return scanner.stop().then(() => scanner.clear()).catch(() => {});
+      }
+      return Promise.resolve();
+    };
 
     scanner
       .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        // Ideal (not exact) hints - browsers fall back gracefully if a camera
+        // can't hit them, and a bigger feed decodes more reliably than the
+        // default low-res stream.
+        { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        {
+          fps: 15,
+          // A function (not a fixed 240px box) so the scan target scales with
+          // however big the preview actually renders, instead of staying a
+          // small fixed square inside a much larger video.
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
+            return { width: edge, height: edge };
+          },
+        },
         (decodedText) => {
           onScanRef.current?.(decodedText);
         },
@@ -37,7 +56,18 @@ export default function QrScanner({ onScan, onError }) {
         }
       )
       .then(() => {
-        if (!cancelled) setStatus("scanning");
+        if (cancelled) {
+          // The component was torn down while the camera was still starting.
+          // Stopping here (instead of only in the cleanup below, which runs
+          // too early to see isScanning=true yet) is what actually closes
+          // the stream - without it a second start() call for the same
+          // element leaves two live camera feeds running at once, which is
+          // exactly what React 18 Strict Mode's mount->cleanup->mount used
+          // to trigger on this page.
+          stopAndClear();
+          return;
+        }
+        setStatus("scanning");
       })
       .catch((err) => {
         if (cancelled) return;
@@ -52,10 +82,7 @@ export default function QrScanner({ onScan, onError }) {
 
     return () => {
       cancelled = true;
-      const active = scannerRef.current;
-      if (active?.isScanning) {
-        active.stop().then(() => active.clear()).catch(() => {});
-      }
+      stopAndClear();
     };
   }, [onError]);
 
@@ -65,11 +92,10 @@ export default function QrScanner({ onScan, onError }) {
         id={READER_ID}
         style={{
           width: "100%",
-          maxWidth: 320,
           borderRadius: 12,
           overflow: "hidden",
           background: "#0f172a",
-          minHeight: status === "error" ? 0 : 240,
+          minHeight: status === "error" ? 0 : 320,
         }}
       />
       {status === "starting" && <p className="text-muted">Starting camera…</p>}
