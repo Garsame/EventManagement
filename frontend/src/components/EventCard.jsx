@@ -5,13 +5,14 @@ const formatDate = (value) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export default function EventCard({ event }) {
-  // Falls back to a placeholder until the admin uploads a real cover image.
-  const coverUrl = event.coverImageUrl || `https://picsum.photos/seed/${event._id}/640/400`;
-
   return (
     <Card className="p-0 overflow-hidden flex flex-col">
-      <div className="aspect-video overflow-hidden bg-slate-100">
-        <img src={coverUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+      <div className="aspect-video overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+        {event.coverImageUrl ? (
+          <img src={event.coverImageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <span className="text-4xl text-slate-300 dark:text-slate-600" aria-hidden="true">🖼️</span>
+        )}
       </div>
       <div className="p-5 flex flex-col flex-1">
         <div className="flex justify-between items-start gap-2">

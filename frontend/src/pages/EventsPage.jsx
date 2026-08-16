@@ -7,15 +7,14 @@ import PublicLayout from "../components/layout/PublicLayout.jsx";
 import EventCard from "../components/EventCard.jsx";
 import PremiumEventCard from "../components/PremiumEventCard.jsx";
 
-const coverFor = (event) => event.coverImageUrl || `https://picsum.photos/seed/${event._id}/500/500`;
-
 /**
  * A mosaic of the actual upcoming events rather than one generic stock photo -
  * it changes as real events are published instead of being decoration
- * unrelated to what the page is about.
+ * unrelated to what the page is about. Only events with a real cover image
+ * are eligible; an event with none never contributes a placeholder tile.
  */
 function EventMosaic({ events }) {
-  const tiles = events.slice(0, 4);
+  const tiles = events.filter((e) => e.coverImageUrl).slice(0, 4);
   if (tiles.length === 0) {
     return (
       <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-900/10 aspect-square bg-gradient-to-br from-brand-100 to-accent-100 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center">
@@ -30,7 +29,7 @@ function EventMosaic({ events }) {
           key={e._id}
           className={`rounded-2xl overflow-hidden shadow-lg shadow-slate-900/10 ${tiles.length === 3 && i === 2 ? "col-span-2" : ""}`}
         >
-          <img src={coverFor(e)} alt="" className="w-full h-full object-cover" />
+          <img src={e.coverImageUrl} alt="" className="w-full h-full object-cover" />
         </div>
       ))}
     </div>

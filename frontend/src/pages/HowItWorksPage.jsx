@@ -4,6 +4,7 @@ import PageHero from "../components/PageHero.jsx";
 import Card from "../components/ui/Card.jsx";
 import SectionHeader from "../components/ui/SectionHeader.jsx";
 import IconBadge from "../components/IconBadge.jsx";
+import howItWorksImage from "../images of the page/about image.jpg";
 
 // The guest side is one linear path everyone takes the same way, so it stays
 // a grid of equal, parallel steps.
@@ -64,7 +65,7 @@ export default function HowItWorksPage() {
         eyebrow="How it works"
         title="Two sides of the same event, run differently."
         subtitle="Guests follow one simple path. Organizers and photographers run the event from the other side — setting it up, verifying who's really there, and sharing the moment afterward."
-        image="https://picsum.photos/seed/eventmedia-howitworks/900/700"
+        image={howItWorksImage}
       />
 
       <div className="shell-wrap">
