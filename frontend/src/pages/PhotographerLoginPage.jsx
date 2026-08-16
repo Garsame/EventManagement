@@ -26,7 +26,7 @@ export default function PhotographerLoginPage() {
     setLoading(true);
     try {
       await login(form.email, form.password);
-      navigate("/photographer/events", { replace: true });
+      navigate("/photographer/dashboard", { replace: true });
     } catch (err) {
       setError(err.response?.data?.error?.message || "Sign-in failed");
     } finally {

@@ -7,6 +7,7 @@ import Button from "../../components/ui/Button.jsx";
 import Alert from "../../components/ui/Alert.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import QrScanner from "../../components/QrScanner.jsx";
+import { Link } from "react-router-dom";
 
 export default function AdminCheckInConsolePage() {
   const [events, setEvents] = useState([]);
@@ -20,9 +21,13 @@ export default function AdminCheckInConsolePage() {
   const lastScanRef = useRef({ token: "", at: 0 });
 
   useEffect(() => {
+    // Only events an admin has explicitly opened the door for show up here -
+    // see the "Open check-in" button on the Events page. That button itself
+    // refuses to open a door with zero registrations, so every event listed
+    // below is guaranteed to have someone to check in.
     adminClient
       .get("/api/admin/events")
-      .then((res) => setEvents(res.data.events.filter((e) => e.status !== "completed")))
+      .then((res) => setEvents(res.data.events.filter((e) => e.checkInOpen)))
       .catch(() => setError("Could not load events."));
   }, []);
 
@@ -64,6 +69,13 @@ export default function AdminCheckInConsolePage() {
 
   return (
     <AdminConsoleLayout title="Check-in" subtitle="Scan a guest's QR code or enter their registration code">
+      {events.length === 0 && (
+        <Alert variant="info" className="mb-5">
+          No events currently have check-in open.{" "}
+          <Link to="/maamul/events" className="underline font-bold">Open check-in for an event</Link> once it has registrations.
+        </Alert>
+      )}
+
       <div className="grid gap-5 grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <div className="input-row">
@@ -73,6 +85,7 @@ export default function AdminCheckInConsolePage() {
               className="input"
               value={eventId}
               onChange={(e) => { setEventId(e.target.value); setError(""); }}
+              disabled={events.length === 0}
             >
               <option value="">Select an event…</option>
               {events.map((e) => <option key={e._id} value={e._id}>{e.title}</option>)}

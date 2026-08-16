@@ -112,6 +112,9 @@ before(async () => {
     visibility: "public",
     published: true,
     status: "registration-open",
+    // Most of this suite exercises the check-in flow itself, so the door is
+    // open by default; the guard that keeps it shut is tested separately.
+    checkInOpen: true,
     createdBy: admin.user._id,
     // Media routes now require assignment, so the fixture photographer is on it.
     photographers: [photographer.user._id],
@@ -341,6 +344,87 @@ describe("gallery gate", () => {
       .send({})
       .expect(400);
     assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+});
+
+describe("check-in window", () => {
+  let doorEvent;
+
+  before(async () => {
+    doorEvent = await Event.create({
+      title: "Door Test Event",
+      startDateTime: new Date("2027-04-01T18:00:00Z"),
+      endDateTime: new Date("2027-04-01T21:00:00Z"),
+      published: true,
+      visibility: "public",
+      status: "registration-open",
+      createdBy: admin.user._id,
+      photographers: [photographer.user._id],
+    });
+  });
+
+  test("refuses to open check-in with zero registrations", async () => {
+    const res = await request(app)
+      .patch(`/api/admin/events/${doorEvent._id}/checkin-open`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ checkInOpen: true })
+      .expect(400);
+    assert.equal(res.body.error.code, "NO_REGISTRATIONS");
+  });
+
+  test("a photographer cannot open check-in", async () => {
+    await request(app)
+      .patch(`/api/admin/events/${doorEvent._id}/checkin-open`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ checkInOpen: true })
+      .expect(403);
+  });
+
+  test("checkin is refused before the door is opened", async () => {
+    const reg = await request(app)
+      .post(`/api/events/${doorEvent._id}/register`)
+      .set("Authorization", `Bearer ${outsider.token}`)
+      .expect(201);
+
+    const res = await request(app)
+      .post(`/api/events/${doorEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.body.registration.registrationCode })
+      .expect(403);
+    assert.equal(res.body.error.code, "CHECKIN_CLOSED");
+  });
+
+  test("opening check-in succeeds once someone has registered", async () => {
+    const res = await request(app)
+      .patch(`/api/admin/events/${doorEvent._id}/checkin-open`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ checkInOpen: true })
+      .expect(200);
+    assert.equal(res.body.checkInOpen, true);
+  });
+
+  test("checkin succeeds once the door is open", async () => {
+    const reg = await EventRegistration.findOne({ eventId: doorEvent._id, userId: outsider.user._id });
+    await request(app)
+      .post(`/api/events/${doorEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.registrationCode })
+      .expect(200);
+  });
+
+  test("closing check-in blocks further scans again", async () => {
+    await request(app)
+      .patch(`/api/admin/events/${doorEvent._id}/checkin-open`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ checkInOpen: false })
+      .expect(200);
+
+    const res = await request(app)
+      .post(`/api/events/${doorEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: "EVT-000000" })
+      .expect(403);
+    assert.equal(res.body.error.code, "CHECKIN_CLOSED");
   });
 });
 

@@ -178,6 +178,24 @@ export default function AdminEventsConsolePage() {
     }
   };
 
+  // Opens or closes the check-in door for this event. The API itself refuses
+  // to open it with zero registrations, so the error message shown here is
+  // always the server's, not a guess made client-side.
+  const toggleCheckIn = async (event) => {
+    setBusyId(event._id);
+    setError("");
+    try {
+      const res = await adminClient.patch(`/api/admin/events/${event._id}/checkin-open`, {
+        checkInOpen: !event.checkInOpen,
+      });
+      setEvents((prev) => prev.map((e) => (e._id === event._id ? { ...e, checkInOpen: res.data.checkInOpen } : e)));
+    } catch (err) {
+      setError(err.response?.data?.error?.message || "Could not update check-in");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const confirmDelete = async () => {
     const event = deleteTarget;
     setBusyId(event._id);
@@ -244,6 +262,9 @@ export default function AdminEventsConsolePage() {
                     <div className="flex gap-2 flex-wrap items-center">
                       <Badge variant={STATUS_BADGE[event.status]}>{STATUS_LABEL[event.status]}</Badge>
                       <Badge variant={event.visibility === "public" ? "info" : "neutral"}>{event.visibility}</Badge>
+                      <Badge variant={event.checkInOpen ? "success" : "neutral"}>
+                        {event.checkInOpen ? "Check-in open" : "Check-in closed"}
+                      </Badge>
                     </div>
                   </div>
 
@@ -303,6 +324,16 @@ export default function AdminEventsConsolePage() {
                   </div>
 
                   <div className="flex gap-2 flex-wrap mt-4">
+                    <Button
+                      type="button"
+                      variant={event.checkInOpen ? "ghost" : "primary"}
+                      onClick={() => toggleCheckIn(event)}
+                      disabled={busyId === event._id || (!event.checkInOpen && event.registrationCount === 0)}
+                      title={!event.checkInOpen && event.registrationCount === 0 ? "No one has registered for this event yet" : undefined}
+                    >
+                      {event.checkInOpen ? "Close check-in" : "Open check-in"}
+                    </Button>
+                    <Link to={`/maamul/events/${event._id}/registrations`} className="btn btn-ghost">View registrations</Link>
                     <Link to={`/maamul/events/${event._id}/media`} className="btn btn-ghost">Manage media</Link>
                     <Link to={`/events/${event._id}`} className="btn btn-ghost">View public page</Link>
                     <Button type="button" variant="ghost" onClick={() => openEdit(event)} disabled={busyId === event._id}>Edit</Button>

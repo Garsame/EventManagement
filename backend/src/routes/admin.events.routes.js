@@ -3,7 +3,9 @@ import {
   createEvent,
   deleteEvent,
   listAllEvents,
+  listEventRegistrations,
   listPhotographers,
+  setCheckInOpen,
   setEventPhotographers,
   updateEvent,
   uploadEventCover,
@@ -20,8 +22,10 @@ router.get("/", requireAuth, requireRole("admin", "photographer"), listAllEvents
 
 router.post("/", requireAuth, requireRole("admin"), createEvent);
 router.get("/photographers", requireAuth, requireRole("admin"), listPhotographers);
+router.get("/:eventId/registrations", requireAuth, requireRole("admin"), listEventRegistrations);
 router.patch("/:eventId", requireAuth, requireRole("admin"), updateEvent);
 router.put("/:eventId/photographers", requireAuth, requireRole("admin"), setEventPhotographers);
+router.patch("/:eventId/checkin-open", requireAuth, requireRole("admin"), setCheckInOpen);
 router.post(
   "/:eventId/cover",
   requireAuth,

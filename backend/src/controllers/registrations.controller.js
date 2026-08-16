@@ -97,6 +97,15 @@ export const checkIn = async (req, res, next) => {
       return res.status(400).json(formatError("VALIDATION_ERROR", "registrationCode or qrToken is required"));
     }
 
+    // The door has to be explicitly opened by an admin before anyone can be
+    // checked in - enforced here, not just hidden in the console UI, so the
+    // API itself refuses a scan against a closed event.
+    const event = await Event.findById(eventId).select("title checkInOpen").lean();
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+    if (!event.checkInOpen) {
+      return res.status(403).json(formatError("CHECKIN_CLOSED", "Check-in is not open for this event yet."));
+    }
+
     const query = { eventId };
     if (registrationCode) query.registrationCode = registrationCode;
     if (qrToken) query.qrToken = qrToken;
@@ -115,13 +124,10 @@ export const checkIn = async (req, res, next) => {
     registration.checkedInBy = req.user.userId;
     await registration.save();
 
-    // Small extra lookups purely for a readable log line - kept separate from
+    // Small extra lookup purely for a readable log line - kept separate from
     // `registration` so the response shape callers already rely on (eventId/
     // userId as plain ids) never changes.
-    const [event, guest] = await Promise.all([
-      Event.findById(eventId).select("title").lean(),
-      User.findById(registration.userId).select("fullName email").lean(),
-    ]);
+    const guest = await User.findById(registration.userId).select("fullName email").lean();
     await logActivity({
       actor: req.user,
       action: "registration.checked_in",

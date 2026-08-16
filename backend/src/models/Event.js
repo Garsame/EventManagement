@@ -14,6 +14,10 @@ const eventSchema = new mongoose.Schema({
     enum: ["draft", "registration-open", "completed"],
     default: "draft",
   },
+  // The door, not the guest list: an admin flips this on the day of the
+  // event to let check-in actually happen. Independent of `status` so
+  // registration can stay open before/after the check-in window.
+  checkInOpen: { type: Boolean, default: false },
   coverImageUrl: { type: String, default: "" },
   coverImagePublicId: { type: String, default: "" },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
