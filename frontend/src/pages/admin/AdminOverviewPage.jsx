@@ -7,16 +7,22 @@ import Card from "../../components/ui/Card.jsx";
 import Alert from "../../components/ui/Alert.jsx";
 import Loading from "../../components/ui/Loading.jsx";
 import Badge from "../../components/ui/Badge.jsx";
+import IconBadge from "../../components/IconBadge.jsx";
 
 const formatDate = (v) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v));
 
-function Stat({ label, value, hint, tone = "" }) {
+function Stat({ label, value, hint, icon, tone = "brand" }) {
   return (
     <div className="stat-card">
-      <div className={`stat-value ${tone}`}>{value}</div>
-      <div className="stat-label">{label}</div>
-      {hint && <div className="text-muted text-xs mt-1">{hint}</div>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="stat-label">{label}</div>
+        <IconBadge icon={icon} tone={tone} size="sm" />
+      </div>
+      <div className="mt-3 flex items-baseline gap-2 flex-wrap">
+        <div className="stat-value">{value}</div>
+        {hint && <span className="text-xs font-semibold text-muted">{hint}</span>}
+      </div>
     </div>
   );
 }
@@ -70,10 +76,10 @@ export default function AdminOverviewPage() {
       {!loading && !error && (
         <>
           <div className="grid grid-4">
-            <Stat label="Events" value={events.length} hint={`${drafts} draft(s)`} />
-            <Stat label="Registrations" value={totals.registrations} hint={`${totals.attended} checked in`} />
-            <Stat label="Media files" value={totals.media} />
-            <Stat label="Attendees" value={userCounts.attendee} hint={`${userCounts.photographer} photographers, ${userCounts.admin} admins`} />
+            <Stat label="Events" value={events.length} hint={`${drafts} draft(s)`} icon="publish" tone="brand" />
+            <Stat label="Registrations" value={totals.registrations} hint={`${totals.attended} checked in`} icon="checkin" tone="success" />
+            <Stat label="Media files" value={totals.media} icon="camera" tone="accent" />
+            <Stat label="Attendees" value={userCounts.attendee} hint={`${userCounts.photographer} photographers, ${userCounts.admin} admins`} icon="register" tone="slate" />
           </div>
 
           {(unassigned > 0 || inactiveCount > 0 || openMessages > 0) && (

@@ -119,8 +119,11 @@ export default function ConsoleLayout({
                 aria-expanded={menuOpen}
               >
                 <Avatar user={user} size="sm" />
-                <span className="hidden sm:inline text-sm font-semibold max-w-[9rem] truncate">
-                  {user?.firstName || user?.fullName || "Account"}
+                <span className="hidden sm:flex flex-col items-start leading-tight max-w-[9rem]">
+                  <span className="text-sm font-bold truncate w-full text-left">
+                    {user?.firstName || user?.fullName || "Account"}
+                  </span>
+                  <span className="text-xs text-muted capitalize truncate w-full text-left">{user?.role}</span>
                 </span>
               </button>
               {menuOpen && (
