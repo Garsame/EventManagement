@@ -145,8 +145,16 @@ export const checkIn = async (req, res, next) => {
       );
     }
 
+    // Fetched once and returned alongside the registration in both branches
+    // below, so the check-in desk can show who it just scanned rather than
+    // only a bare code - kept as a separate `guest` field rather than
+    // populating `registration.userId` so that field's existing shape (a
+    // plain id) never changes for other callers.
+    const guest = await User.findById(registration.userId).select("fullName email").lean();
+    const guestDTO = guest ? { fullName: guest.fullName, email: guest.email } : null;
+
     if (registration.attended) {
-      return res.json({ registration });
+      return res.json({ registration, guest: guestDTO });
     }
 
     registration.attended = true;
@@ -154,10 +162,6 @@ export const checkIn = async (req, res, next) => {
     registration.checkedInBy = req.user.userId;
     await registration.save();
 
-    // Small extra lookup purely for a readable log line - kept separate from
-    // `registration` so the response shape callers already rely on (eventId/
-    // userId as plain ids) never changes.
-    const guest = await User.findById(registration.userId).select("fullName email").lean();
     await logActivity({
       actor: req.user,
       action: "registration.checked_in",
@@ -167,7 +171,7 @@ export const checkIn = async (req, res, next) => {
       targetLabel: guest?.fullName || "",
     });
 
-    return res.json({ registration });
+    return res.json({ registration, guest: guestDTO });
   } catch (err) {
     return next(err);
   }
