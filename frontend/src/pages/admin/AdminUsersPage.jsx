@@ -9,6 +9,7 @@ import Alert from "../../components/ui/Alert.jsx";
 import Badge from "../../components/ui/Badge.jsx";
 import Loading from "../../components/ui/Loading.jsx";
 import Modal from "../../components/ui/Modal.jsx";
+import ConfirmDialog from "../../components/ui/ConfirmDialog.jsx";
 import Avatar from "../../components/Avatar.jsx";
 
 const GROUPS = {
@@ -49,6 +50,7 @@ export default function AdminUsersPage() {
   const [passwordSending, setPasswordSending] = useState(false);
 
   const [busyId, setBusyId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const load = useCallback(async () => {
     if (!config) return;
@@ -161,16 +163,18 @@ export default function AdminUsersPage() {
     }
   };
 
-  const remove = async (u) => {
-    if (!window.confirm(`Delete ${u.fullName}? This also removes their registrations. This cannot be undone.`)) return;
+  const confirmDelete = async () => {
+    const u = deleteTarget;
     setBusyId(u.id);
     setError("");
     try {
       await adminClient.delete(`/api/admin/users/${u.id}`);
       setMessage(`Deleted ${u.fullName}.`);
+      setDeleteTarget(null);
       await load();
     } catch (err) {
       setError(err.response?.data?.error?.message || "Could not delete this account");
+      setDeleteTarget(null);
     } finally {
       setBusyId(null);
     }
@@ -230,7 +234,7 @@ export default function AdminUsersPage() {
                 >
                   {u.isActive ? "Deactivate" : "Activate"}
                 </Button>
-                <Button type="button" variant="danger" onClick={() => remove(u)} disabled={busyId === u.id || u.id === me?.id}>
+                <Button type="button" variant="danger" onClick={() => setDeleteTarget(u)} disabled={busyId === u.id || u.id === me?.id}>
                   Delete
                 </Button>
               </div>
@@ -312,6 +316,16 @@ export default function AdminUsersPage() {
           onClose={() => setPasswordTarget(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete ${deleteTarget?.fullName}?`}
+        message="This also removes their registrations. This cannot be undone."
+        confirmLabel="Delete"
+        loading={busyId === deleteTarget?.id}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AdminConsoleLayout>
   );
 }
