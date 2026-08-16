@@ -1,6 +1,7 @@
 import Event, { canManageEventMedia } from "../models/Event.js";
 import Media from "../models/Media.js";
 import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
+import { logActivity } from "../utils/activityLog.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -70,6 +71,15 @@ export const uploadMedia = async (req, res, next) => {
       height: stored.height,
     });
 
+    await logActivity({
+      actor: req.user,
+      action: "media.uploaded",
+      summary: `Uploaded a ${stored.type} to "${event.title}"`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
     return res.status(201).json(toMediaDTO(media));
   } catch (err) {
     return next(err);
@@ -111,6 +121,16 @@ export const deleteMedia = async (req, res, next) => {
 
     await removeMedia(media.publicId, media.type);
     await media.deleteOne();
+
+    await logActivity({
+      actor: req.user,
+      action: "media.deleted",
+      summary: `Deleted a ${media.type} from "${event.title}"`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
     return res.json({ success: true });
   } catch (err) {
     return next(err);

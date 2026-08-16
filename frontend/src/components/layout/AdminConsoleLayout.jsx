@@ -9,10 +9,18 @@ const ICONS = {
   camera: <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" strokeLinecap="round" strokeLinejoin="round" />,
   shield: <path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3Z" strokeLinecap="round" strokeLinejoin="round" />,
   messages: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z" strokeLinecap="round" strokeLinejoin="round" />,
+  profile: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" strokeLinecap="round" strokeLinejoin="round" />,
+  reports: <path d="M9 17V9m3 8V5m3 12v-6M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" strokeLinecap="round" strokeLinejoin="round" />,
 };
 
 const NAV_GROUPS = [
-  { label: "Overview", items: [{ to: "/maamul/dashboard", end: true, label: "Dashboard", icon: ICONS.dashboard }] },
+  {
+    label: "Overview",
+    items: [
+      { to: "/maamul/dashboard", end: true, label: "Dashboard", icon: ICONS.dashboard },
+      { to: "/maamul/profile", label: "Profile", icon: ICONS.profile },
+    ],
+  },
   {
     label: "Content",
     items: [
@@ -22,7 +30,10 @@ const NAV_GROUPS = [
   },
   {
     label: "Support",
-    items: [{ to: "/maamul/messages", label: "Messages", icon: ICONS.messages }],
+    items: [
+      { to: "/maamul/messages", label: "Messages", icon: ICONS.messages },
+      { to: "/maamul/reports", label: "Reports", icon: ICONS.reports },
+    ],
   },
   {
     label: "Users",

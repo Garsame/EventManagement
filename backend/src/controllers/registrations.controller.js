@@ -3,6 +3,7 @@ import Event, { canRegisterFor } from "../models/Event.js";
 import EventRegistration from "../models/EventRegistration.js";
 import Media from "../models/Media.js";
 import User, { missingProfileFields } from "../models/User.js";
+import { logActivity } from "../utils/activityLog.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -113,6 +114,22 @@ export const checkIn = async (req, res, next) => {
     registration.checkedInAt = new Date();
     registration.checkedInBy = req.user.userId;
     await registration.save();
+
+    // Small extra lookups purely for a readable log line - kept separate from
+    // `registration` so the response shape callers already rely on (eventId/
+    // userId as plain ids) never changes.
+    const [event, guest] = await Promise.all([
+      Event.findById(eventId).select("title").lean(),
+      User.findById(registration.userId).select("fullName email").lean(),
+    ]);
+    await logActivity({
+      actor: req.user,
+      action: "registration.checked_in",
+      summary: `Checked in ${guest?.fullName || "a guest"} (${guest?.email || "?"}) to "${event?.title || "an event"}"`,
+      targetType: "registration",
+      targetId: registration._id,
+      targetLabel: guest?.fullName || "",
+    });
 
     return res.json({ registration });
   } catch (err) {

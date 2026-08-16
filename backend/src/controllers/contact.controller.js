@@ -1,5 +1,6 @@
 import Message, { toMessageDTO } from "../models/Message.js";
 import { sendContactNotificationEmail, sendContactReplyEmail } from "../config/mailer.js";
+import { logActivity } from "../utils/activityLog.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -91,6 +92,15 @@ export const replyToMessage = async (req, res, next) => {
     doc.status = "replied";
     doc.reply = { body: String(reply).trim(), repliedAt: new Date(), repliedBy: req.user.userId };
     await doc.save();
+
+    await logActivity({
+      actor: req.user,
+      action: "message.replied",
+      summary: `Replied to ${doc.name} (${doc.email})`,
+      targetType: "message",
+      targetId: doc._id,
+      targetLabel: doc.subject || doc.name,
+    });
 
     return res.json({ message: toMessageDTO(doc), delivered: result.delivered });
   } catch (err) {
