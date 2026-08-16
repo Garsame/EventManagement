@@ -26,12 +26,14 @@ import { usePhotographerAuth } from "../context/PhotographerAuthContext.jsx";
 import AdminOverviewPage from "../pages/admin/AdminOverviewPage.jsx";
 import AdminUsersPage from "../pages/admin/AdminUsersPage.jsx";
 import AdminEventsConsolePage from "../pages/admin/AdminEventsConsolePage.jsx";
+import AdminEventRegistrationsPage from "../pages/admin/AdminEventRegistrationsPage.jsx";
 import AdminCheckInConsolePage from "../pages/admin/AdminCheckInConsolePage.jsx";
 import AdminMediaManagePage from "../pages/admin/AdminMediaManagePage.jsx";
 import AdminProfilePage from "../pages/admin/AdminProfilePage.jsx";
 import AdminMessagesPage from "../pages/admin/AdminMessagesPage.jsx";
 import AdminReportsPage from "../pages/admin/AdminReportsPage.jsx";
 
+import PhotographerDashboardPage from "../pages/photographer/PhotographerDashboardPage.jsx";
 import PhotographerEventsPage from "../pages/photographer/PhotographerEventsPage.jsx";
 import PhotographerMediaManagePage from "../pages/photographer/PhotographerMediaManagePage.jsx";
 import PhotographerProfilePage from "../pages/photographer/PhotographerProfilePage.jsx";
@@ -78,6 +80,7 @@ export default function AppRouter() {
       <Route path="/maamul/users/:group" element={<AdminGuard><AdminUsersPage /></AdminGuard>} />
       <Route path="/maamul/events" element={<AdminGuard><AdminEventsConsolePage /></AdminGuard>} />
       <Route path="/maamul/events/:eventId/media" element={<AdminGuard><AdminMediaManagePage /></AdminGuard>} />
+      <Route path="/maamul/events/:eventId/registrations" element={<AdminGuard><AdminEventRegistrationsPage /></AdminGuard>} />
       <Route path="/maamul/checkin" element={<AdminGuard><AdminCheckInConsolePage /></AdminGuard>} />
       <Route path="/maamul/profile" element={<AdminGuard><AdminProfilePage /></AdminGuard>} />
       <Route path="/maamul/messages" element={<AdminGuard><AdminMessagesPage /></AdminGuard>} />
@@ -86,6 +89,7 @@ export default function AppRouter() {
       {/* ---- Photographer realm: sign-in only, accounts made by an admin ---- */}
       <Route path="/photographer/login" element={<PhotographerLoginPage />} />
       <Route path="/photographer/forgot-password" element={<PhotographerForgotPasswordPage />} />
+      <Route path="/photographer/dashboard" element={<PhotographerGuard><PhotographerDashboardPage /></PhotographerGuard>} />
       <Route path="/photographer/events" element={<PhotographerGuard><PhotographerEventsPage /></PhotographerGuard>} />
       <Route path="/photographer/events/:eventId/media" element={<PhotographerGuard><PhotographerMediaManagePage /></PhotographerGuard>} />
       <Route path="/photographer/profile" element={<PhotographerGuard><PhotographerProfilePage /></PhotographerGuard>} />

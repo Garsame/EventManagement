@@ -6,6 +6,12 @@ const NAV_GROUPS = [
     label: "Work",
     items: [
       {
+        to: "/photographer/dashboard",
+        end: true,
+        label: "Dashboard",
+        icon: <path d="M4 13h6V4H4v9Zm10 7h6V4h-6v16ZM4 20h6v-5H4v5Z" strokeLinecap="round" strokeLinejoin="round" />,
+      },
+      {
         to: "/photographer/events",
         end: true,
         label: "My events",

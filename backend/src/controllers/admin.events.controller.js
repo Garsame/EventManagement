@@ -271,6 +271,100 @@ export const deleteEvent = async (req, res, next) => {
   }
 };
 
+/**
+ * Opens or closes the check-in window for one event. Kept separate from
+ * updateEvent because it is a door, not a field edit: opening it is refused
+ * outright when nobody has registered yet, since there would be nobody to
+ * check in.
+ */
+export const setCheckInOpen = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const { checkInOpen } = req.body || {};
+    if (typeof checkInOpen !== "boolean") {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "checkInOpen must be true or false"));
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    if (checkInOpen) {
+      const registrationCount = await EventRegistration.countDocuments({ eventId });
+      if (registrationCount === 0) {
+        return res.status(400).json(
+          formatError("NO_REGISTRATIONS", "This event has no registrations yet, so check-in cannot be opened.")
+        );
+      }
+    }
+
+    event.checkInOpen = checkInOpen;
+    await event.save();
+
+    await logActivity({
+      actor: req.user,
+      action: checkInOpen ? "event.checkin_opened" : "event.checkin_closed",
+      summary: `${checkInOpen ? "Opened" : "Closed"} check-in for "${event.title}"`,
+      targetType: "event",
+      targetId: event._id,
+      targetLabel: event.title,
+    });
+
+    return res.json({ checkInOpen: event.checkInOpen });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
+ * Every registrant for one event, with who they are, the serial/QR code that
+ * proves their registration, and whether (and when, and by whom) they were
+ * actually checked in at the door. This is the detail an admin needs behind
+ * the summary counts shown on the events list.
+ */
+export const listEventRegistrations = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).select("title startDateTime endDateTime status").lean();
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    const registrations = await EventRegistration.find({ eventId })
+      .populate("userId", "fullName email phone institution educationLevel avatarUrl")
+      .populate("checkedInBy", "fullName role")
+      .sort({ registeredAt: -1 })
+      .lean();
+
+    const rows = registrations.map((r) => ({
+      id: r._id,
+      user: r.userId
+        ? {
+            id: r.userId._id,
+            fullName: r.userId.fullName,
+            email: r.userId.email,
+            phone: r.userId.phone || "",
+            institution: r.userId.institution || "",
+            educationLevel: r.userId.educationLevel || "",
+            avatarUrl: r.userId.avatarUrl || "",
+          }
+        : null,
+      registrationCode: r.registrationCode,
+      registeredAt: r.registeredAt,
+      attended: r.attended,
+      checkedInAt: r.checkedInAt || null,
+      checkedInBy: r.checkedInBy ? { fullName: r.checkedInBy.fullName, role: r.checkedInBy.role } : null,
+    }));
+
+    const attended = rows.filter((r) => r.attended).length;
+
+    return res.json({
+      event: { id: event._id, title: event.title, startDateTime: event.startDateTime, endDateTime: event.endDateTime, status: event.status },
+      counts: { total: rows.length, attended, notAttended: rows.length - attended },
+      registrations: rows,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 /** Photographer accounts an admin can pick from when assigning. */
 export const listPhotographers = async (req, res, next) => {
   try {
@@ -296,6 +390,8 @@ export default {
   updateEvent,
   listAllEvents,
   setEventPhotographers,
+  setCheckInOpen,
   deleteEvent,
   listPhotographers,
+  listEventRegistrations,
 };

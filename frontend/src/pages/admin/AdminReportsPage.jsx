@@ -35,6 +35,8 @@ const ACTION_LABELS = {
   "event.updated": "Event updated",
   "event.deleted": "Event deleted",
   "event.photographers_assigned": "Photographer assigned",
+  "event.checkin_opened": "Check-in opened",
+  "event.checkin_closed": "Check-in closed",
   "registration.checked_in": "Guest checked in",
   "media.uploaded": "Media uploaded",
   "media.deleted": "Media deleted",
