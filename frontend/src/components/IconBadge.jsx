@@ -19,15 +19,27 @@ const icons = {
   ),
 };
 
-export default function IconBadge({ icon = "register", tone = "brand" }) {
-  const toneClasses = {
-    brand: "bg-brand-50 text-brand-600",
-    accent: "bg-accent-50 text-accent-600",
-    slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  };
+// brand/accent/slate map onto the exact same blue/amber/grey used by Badge's
+// info/warn/neutral variants; success is the one tone Badge has that this
+// didn't, added here so every colored-icon-badge in the app (stat cards
+// included) draws from one shared palette rather than two similar-but-not-
+// identical ones.
+const TONE_CLASSES = {
+  brand: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300",
+  accent: "bg-accent-50 text-accent-600 dark:bg-accent-500/15 dark:text-accent-400",
+  success: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300",
+  slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+};
+
+const SIZE_CLASSES = {
+  md: "w-12 h-12 rounded-2xl",
+  sm: "w-10 h-10 rounded-xl",
+};
+
+export default function IconBadge({ icon = "register", tone = "brand", size = "md" }) {
   return (
-    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl ${toneClasses[tone]}`}>
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <div className={`inline-flex items-center justify-center shrink-0 ${SIZE_CLASSES[size]} ${TONE_CLASSES[tone]}`}>
+      <svg width={size === "sm" ? 20 : 24} height={size === "sm" ? 20 : 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
         {icons[icon]}
       </svg>
     </div>
