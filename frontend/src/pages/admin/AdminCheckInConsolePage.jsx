@@ -19,6 +19,7 @@ export default function AdminCheckInConsolePage() {
   const [feed, setFeed] = useState([]);
   const [checkedIn, setCheckedIn] = useState([]);
   const [checkedInLoading, setCheckedInLoading] = useState(false);
+  const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(null);
 
   const lastScanRef = useRef({ token: "", at: 0 });
 
@@ -54,6 +55,7 @@ export default function AdminCheckInConsolePage() {
       if (!code && !token) { setError("Enter a registration code or scan a QR code."); return; }
 
       setError("");
+      setAlreadyCheckedIn(null);
       setLoading(true);
       try {
         const res = await adminClient.post(`/api/events/${eventId}/checkin`, {
@@ -82,7 +84,16 @@ export default function AdminCheckInConsolePage() {
         );
         setRegistrationCode("");
       } catch (err) {
-        setError(err.response?.data?.error?.message || "Check-in failed");
+        const data = err.response?.data;
+        if (data?.error?.code === "ALREADY_CHECKED_IN") {
+          setAlreadyCheckedIn({
+            guestName: data.guest?.fullName || "This guest",
+            registrationCode: data.registration?.registrationCode,
+            checkedInAt: data.registration?.checkedInAt,
+          });
+        } else {
+          setError(data?.error?.message || "Check-in failed");
+        }
       } finally {
         setLoading(false);
       }
@@ -118,7 +129,7 @@ export default function AdminCheckInConsolePage() {
               id="checkin-event"
               className="input"
               value={eventId}
-              onChange={(e) => { setEventId(e.target.value); setError(""); }}
+              onChange={(e) => { setEventId(e.target.value); setError(""); setAlreadyCheckedIn(null); }}
               disabled={events.length === 0}
             >
               <option value="">Select an event…</option>
@@ -161,6 +172,22 @@ export default function AdminCheckInConsolePage() {
           </form>
 
           {error && <Alert variant="error" className="mt-4">{error}</Alert>}
+
+          {alreadyCheckedIn && (
+            <div className="card-muted !bg-amber-50 !border-amber-200 dark:!bg-amber-500/10 dark:!border-amber-500/30 mt-4 flex items-center gap-3">
+              <span className="text-3xl shrink-0" aria-hidden="true">⚠️</span>
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wide font-bold text-amber-700 dark:text-amber-400">
+                  Already checked in
+                </div>
+                <div className="font-bold text-lg truncate">{alreadyCheckedIn.guestName}</div>
+                <div className="text-sm text-muted">
+                  {alreadyCheckedIn.registrationCode}
+                  {alreadyCheckedIn.checkedInAt && ` · Checked in at ${new Date(alreadyCheckedIn.checkedInAt).toLocaleTimeString()}`}
+                </div>
+              </div>
+            </div>
+          )}
 
           {eventId && (
             <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">

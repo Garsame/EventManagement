@@ -412,6 +412,17 @@ describe("check-in window", () => {
       .expect(200);
   });
 
+  test("scanning an already-checked-in code again is refused, not re-confirmed", async () => {
+    const reg = await EventRegistration.findOne({ eventId: doorEvent._id, userId: outsider.user._id });
+    const res = await request(app)
+      .post(`/api/events/${doorEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: reg.registrationCode })
+      .expect(409);
+    assert.equal(res.body.error.code, "ALREADY_CHECKED_IN");
+    assert.match(res.body.error.message, /already checked in/i);
+  });
+
   test("closing check-in blocks further scans again", async () => {
     await request(app)
       .patch(`/api/admin/events/${doorEvent._id}/checkin-open`)

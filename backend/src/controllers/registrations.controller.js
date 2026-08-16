@@ -153,8 +153,18 @@ export const checkIn = async (req, res, next) => {
     const guest = await User.findById(registration.userId).select("fullName email").lean();
     const guestDTO = guest ? { fullName: guest.fullName, email: guest.email } : null;
 
+    // Once used, a registration/QR code is spent - scanning it again is
+    // refused rather than silently re-confirmed, so the desk can never wave
+    // the same guest through twice without noticing.
     if (registration.attended) {
-      return res.json({ registration, guest: guestDTO });
+      return res.status(409).json({
+        error: {
+          code: "ALREADY_CHECKED_IN",
+          message: `${guest?.fullName || "This guest"} was already checked in for this event.`,
+        },
+        registration,
+        guest: guestDTO,
+      });
     }
 
     registration.attended = true;
