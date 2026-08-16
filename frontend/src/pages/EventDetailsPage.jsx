@@ -7,6 +7,7 @@ import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import Loading from "../components/ui/Loading.jsx";
+import Input from "../components/ui/Input.jsx";
 import SectionLayout, { useEventBase } from "../components/layout/SectionLayout.jsx";
 
 const formatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -23,6 +24,8 @@ export default function EventDetailsPage() {
   const [error, setError] = useState("");
   const [regError, setRegError] = useState("");
   const [profileBlocked, setProfileBlocked] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -60,7 +63,8 @@ export default function EventDetailsPage() {
     setRegError("");
     setProfileBlocked(false);
     try {
-      const res = await client.post(`/api/events/${eventId}/register`);
+      const body = event?.isPremium ? { planId: selectedPlanId, paymentReference } : undefined;
+      const res = await client.post(`/api/events/${eventId}/register`, body);
       setRegistration(res.data.registration);
     } catch (err) {
       const code = err.response?.data?.error?.code;
@@ -130,9 +134,49 @@ export default function EventDetailsPage() {
                   </Link>
                 </Alert>
               )}
+              {event.isPremium && !registration && registrationOpen && (
+                <div style={{ marginTop: "1.25rem" }}>
+                  <Alert variant="info">
+                    This event requires a participation fee. Choose a plan below - an admin confirms your
+                    payment before check-in.
+                  </Alert>
+                  <div className="stack gap-2" style={{ marginTop: "0.75rem" }}>
+                    {(event.plans || []).map((plan) => (
+                      <label
+                        key={plan._id}
+                        className="card-muted"
+                        style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer" }}
+                      >
+                        <input
+                          type="radio"
+                          name="plan"
+                          checked={selectedPlanId === plan._id}
+                          onChange={() => setSelectedPlanId(plan._id)}
+                        />
+                        <div>
+                          <strong>{plan.name}</strong> — {event.currency || "USD"} {plan.price}
+                          {plan.description && <div className="text-muted text-sm">{plan.description}</div>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <Input
+                      label="Payment reference (optional)"
+                      helper="If you already sent a mobile money / bank transfer, add its reference so an admin can match it."
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      className="!mb-0"
+                    />
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
                 {!registration && registrationOpen && (
-                  <Button onClick={handleRegister} disabled={regLoading || blockedByProfile}>
+                  <Button
+                    onClick={handleRegister}
+                    disabled={regLoading || blockedByProfile || (event.isPremium && !selectedPlanId)}
+                  >
                     {regLoading ? "Registering..." : "Register for this event"}
                   </Button>
                 )}
@@ -147,6 +191,16 @@ export default function EventDetailsPage() {
                         Copy
                       </Button>
                     </div>
+                    {event.isPremium && (
+                      <div style={{ marginTop: "0.5rem" }}>
+                        <div className="text-muted">
+                          Plan: <strong>{registration.planName}</strong> — {registration.currency} {registration.amountDue}
+                        </div>
+                        <Badge variant={registration.paymentStatus === "paid" ? "success" : registration.paymentStatus === "refunded" ? "neutral" : "warn"}>
+                          {registration.paymentStatus === "paid" ? "Payment confirmed" : registration.paymentStatus === "refunded" ? "Refunded" : "Payment pending"}
+                        </Badge>
+                      </div>
+                    )}
                     <div className="text-muted" style={{ marginTop: "0.5rem" }}>
                       Attended: {registration.attended ? "Yes" : "No"}
                     </div>

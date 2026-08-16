@@ -24,6 +24,9 @@ const validateEventPayload = (body, isUpdate = false) => {
     "endDateTime",
     "visibility",
     "status",
+    "isPremium",
+    "currency",
+    "plans",
   ];
   const payload = {};
   allowed.forEach((key) => {
@@ -34,6 +37,25 @@ const validateEventPayload = (body, isUpdate = false) => {
   }
   if (payload.visibility && !["public", "private"].includes(payload.visibility)) {
     return { error: formatError("VALIDATION_ERROR", "visibility must be public or private") };
+  }
+  if (payload.plans !== undefined) {
+    if (!Array.isArray(payload.plans) || payload.plans.length === 0) {
+      return { error: formatError("VALIDATION_ERROR", "A premium event needs at least one plan") };
+    }
+    const cleanPlans = [];
+    for (const p of payload.plans) {
+      const name = (p?.name || "").trim();
+      const price = Number(p?.price);
+      if (!name) return { error: formatError("VALIDATION_ERROR", "Every plan needs a name") };
+      if (!Number.isFinite(price) || price < 0) {
+        return { error: formatError("VALIDATION_ERROR", `Plan "${name}" needs a valid price`) };
+      }
+      cleanPlans.push({ name, price, description: (p?.description || "").trim() });
+    }
+    payload.plans = cleanPlans;
+  }
+  if (payload.isPremium === true && (!payload.plans || payload.plans.length === 0)) {
+    return { error: formatError("VALIDATION_ERROR", "Premium events need at least one plan") };
   }
   if (!isUpdate) {
     if (!payload.title) return { error: formatError("VALIDATION_ERROR", "title is required") };
@@ -159,7 +181,16 @@ export const listAllEvents = async (req, res, next) => {
       Media.aggregate([{ $match: { eventId: { $in: ids } } }, { $group: { _id: "$eventId", n: { $sum: 1 } } }]),
       EventRegistration.aggregate([
         { $match: { eventId: { $in: ids } } },
-        { $group: { _id: "$eventId", total: { $sum: 1 }, attended: { $sum: { $cond: ["$attended", 1, 0] } } } },
+        {
+          $group: {
+            _id: "$eventId",
+            total: { $sum: 1 },
+            attended: { $sum: { $cond: ["$attended", 1, 0] } },
+            paid: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] } },
+            pendingPayment: { $sum: { $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0] } },
+            revenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$amountDue", 0] } },
+          },
+        },
       ]),
     ]);
 
@@ -175,6 +206,9 @@ export const listAllEvents = async (req, res, next) => {
           mediaCount: mediaBy.get(String(e._id)) || 0,
           registrationCount: reg?.total || 0,
           attendedCount: reg?.attended || 0,
+          paidCount: reg?.paid || 0,
+          pendingPaymentCount: reg?.pendingPayment || 0,
+          revenue: reg?.revenue || 0,
         };
       }),
     });
@@ -324,12 +358,15 @@ export const setCheckInOpen = async (req, res, next) => {
 export const listEventRegistrations = async (req, res, next) => {
   try {
     const { eventId } = req.params;
-    const event = await Event.findById(eventId).select("title startDateTime endDateTime status").lean();
+    const event = await Event.findById(eventId)
+      .select("title startDateTime endDateTime status isPremium currency plans")
+      .lean();
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
 
     const registrations = await EventRegistration.find({ eventId })
       .populate("userId", "fullName email phone institution educationLevel avatarUrl")
       .populate("checkedInBy", "fullName role")
+      .populate("paymentConfirmedBy", "fullName role")
       .sort({ registeredAt: -1 })
       .lean();
 
@@ -351,15 +388,81 @@ export const listEventRegistrations = async (req, res, next) => {
       attended: r.attended,
       checkedInAt: r.checkedInAt || null,
       checkedInBy: r.checkedInBy ? { fullName: r.checkedInBy.fullName, role: r.checkedInBy.role } : null,
+      planId: r.planId || null,
+      planName: r.planName || "",
+      amountDue: r.amountDue ?? null,
+      currency: r.currency || "",
+      paymentStatus: r.paymentStatus,
+      paymentMethod: r.paymentMethod || "",
+      paymentReference: r.paymentReference || "",
+      paymentConfirmedAt: r.paymentConfirmedAt || null,
+      paymentConfirmedBy: r.paymentConfirmedBy ? { fullName: r.paymentConfirmedBy.fullName, role: r.paymentConfirmedBy.role } : null,
     }));
 
     const attended = rows.filter((r) => r.attended).length;
+    const paid = rows.filter((r) => r.paymentStatus === "paid").length;
+    const pendingPayment = rows.filter((r) => r.paymentStatus === "pending").length;
+    const revenue = rows.filter((r) => r.paymentStatus === "paid").reduce((sum, r) => sum + (r.amountDue || 0), 0);
 
     return res.json({
-      event: { id: event._id, title: event.title, startDateTime: event.startDateTime, endDateTime: event.endDateTime, status: event.status },
-      counts: { total: rows.length, attended, notAttended: rows.length - attended },
+      event: {
+        id: event._id,
+        title: event.title,
+        startDateTime: event.startDateTime,
+        endDateTime: event.endDateTime,
+        status: event.status,
+        isPremium: event.isPremium,
+        currency: event.currency,
+        plans: event.plans || [],
+      },
+      counts: { total: rows.length, attended, notAttended: rows.length - attended, paid, pendingPayment, revenue },
       registrations: rows,
     });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
+ * Manually confirms (or reverses) payment for one premium-event registration.
+ * This is the whole "payment gateway" for now - an admin reviews proof of
+ * payment collected outside the app and flips this switch. A future gateway
+ * integration would set paymentStatus/paymentMethod automatically instead,
+ * without needing any schema change here.
+ */
+export const setRegistrationPayment = async (req, res, next) => {
+  try {
+    const { eventId, registrationId } = req.params;
+    const { paymentStatus, paymentReference } = req.body || {};
+    if (!["pending", "paid", "refunded"].includes(paymentStatus)) {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "paymentStatus must be pending, paid, or refunded"));
+    }
+
+    const registration = await EventRegistration.findOne({ _id: registrationId, eventId });
+    if (!registration) return res.status(404).json(formatError("NOT_FOUND", "Registration not found"));
+
+    registration.paymentStatus = paymentStatus;
+    if (paymentReference !== undefined) registration.paymentReference = paymentReference;
+    if (paymentStatus === "paid") {
+      registration.paymentConfirmedAt = new Date();
+      registration.paymentConfirmedBy = req.user.userId;
+    } else {
+      registration.paymentConfirmedAt = undefined;
+      registration.paymentConfirmedBy = undefined;
+    }
+    await registration.save();
+
+    const event = await Event.findById(eventId).select("title").lean();
+    await logActivity({
+      actor: req.user,
+      action: `registration.payment_${paymentStatus}`,
+      summary: `Marked payment ${paymentStatus} on "${event?.title || "an event"}"`,
+      targetType: "registration",
+      targetId: registration._id,
+      targetLabel: event?.title || "",
+    });
+
+    return res.json({ registration });
   } catch (err) {
     return next(err);
   }
@@ -394,4 +497,5 @@ export default {
   deleteEvent,
   listPhotographers,
   listEventRegistrations,
+  setRegistrationPayment,
 };

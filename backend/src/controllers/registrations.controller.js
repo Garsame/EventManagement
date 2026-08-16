@@ -24,6 +24,7 @@ export const registerForEvent = async (req, res, next) => {
   try {
     const { eventId } = req.params;
     const userId = req.user.userId;
+    const { planId, paymentReference } = req.body || {};
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
@@ -61,12 +62,33 @@ export const registerForEvent = async (req, res, next) => {
       return res.json({ registration });
     }
 
+    // Premium events require a plan choice up front; it is snapshotted onto
+    // the registration so later edits to the event's plans can't change what
+    // this guest already committed (and, once paid, already paid) to.
+    let planFields = {};
+    if (event.isPremium) {
+      const plan = (event.plans || []).find((p) => String(p._id) === String(planId));
+      if (!plan) {
+        return res.status(400).json(formatError("VALIDATION_ERROR", "Choose a valid participation plan"));
+      }
+      planFields = {
+        planId: plan._id,
+        planName: plan.name,
+        amountDue: plan.price,
+        currency: event.currency || "USD",
+        paymentStatus: "pending",
+        paymentMethod: "manual",
+        paymentReference: (paymentReference || "").trim(),
+      };
+    }
+
     registration = await EventRegistration.create({
       eventId,
       userId,
       registrationCode: generateRegistrationCode(),
       qrToken: generateQrToken(),
       attended: false,
+      ...planFields,
     });
 
     return res.status(201).json({ registration });
@@ -100,7 +122,7 @@ export const checkIn = async (req, res, next) => {
     // The door has to be explicitly opened by an admin before anyone can be
     // checked in - enforced here, not just hidden in the console UI, so the
     // API itself refuses a scan against a closed event.
-    const event = await Event.findById(eventId).select("title checkInOpen").lean();
+    const event = await Event.findById(eventId).select("title checkInOpen isPremium").lean();
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
     if (!event.checkInOpen) {
       return res.status(403).json(formatError("CHECKIN_CLOSED", "Check-in is not open for this event yet."));
@@ -113,6 +135,14 @@ export const checkIn = async (req, res, next) => {
     const registration = await EventRegistration.findOne(query);
     if (!registration) {
       return res.status(404).json(formatError("NOT_REGISTERED", "Registration not found for this event/code"));
+    }
+
+    // A premium guest cannot be let in until an admin has confirmed their
+    // payment - this is the actual enforcement of the participation fee.
+    if (event.isPremium && registration.paymentStatus !== "paid") {
+      return res.status(403).json(
+        formatError("PAYMENT_REQUIRED", "This guest's payment has not been confirmed yet. Confirm payment before checking them in.")
+      );
     }
 
     if (registration.attended) {

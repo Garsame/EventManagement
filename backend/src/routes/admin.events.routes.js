@@ -7,6 +7,7 @@ import {
   listPhotographers,
   setCheckInOpen,
   setEventPhotographers,
+  setRegistrationPayment,
   updateEvent,
   uploadEventCover,
 } from "../controllers/admin.events.controller.js";
@@ -26,6 +27,12 @@ router.get("/:eventId/registrations", requireAuth, requireRole("admin"), listEve
 router.patch("/:eventId", requireAuth, requireRole("admin"), updateEvent);
 router.put("/:eventId/photographers", requireAuth, requireRole("admin"), setEventPhotographers);
 router.patch("/:eventId/checkin-open", requireAuth, requireRole("admin"), setCheckInOpen);
+router.patch(
+  "/:eventId/registrations/:registrationId/payment",
+  requireAuth,
+  requireRole("admin"),
+  setRegistrationPayment
+);
 router.post(
   "/:eventId/cover",
   requireAuth,
