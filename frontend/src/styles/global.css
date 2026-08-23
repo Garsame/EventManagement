@@ -341,4 +341,55 @@
   .step-label { @apply text-xs font-semibold text-slate-400 truncate dark:text-slate-500; }
   .step.is-done .step-label { @apply text-emerald-600 dark:text-emerald-400; }
   .step.is-current .step-label { @apply text-brand-700 dark:text-brand-300; }
+
+  /* Select and textarea, matched to .input so a form reads as one control set */
+  .select {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-slate-900 appearance-none
+           bg-no-repeat transition-colors focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15
+           dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.9rem center;
+    padding-right: 2.5rem;
+  }
+  .select:invalid, .select option[value=""] { @apply text-slate-400 dark:text-slate-500; }
+  .textarea {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-slate-900 resize-y min-h-24
+           transition-colors focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15
+           dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+
+  /* Two-up form rows that stack on small screens */
+  .field-grid { @apply grid grid-cols-1 sm:grid-cols-2 gap-x-4; }
+
+  /* Toasts: bottom-right, above everything, stacked newest last */
+  .toast-viewport {
+    @apply fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none
+           max-w-[calc(100vw-2rem)] w-80;
+  }
+  .toast {
+    @apply pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium
+           shadow-lg shadow-slate-900/10 dark:shadow-black/40;
+    animation: toast-in 200ms ease-out;
+  }
+  .toast-success {
+    @apply bg-emerald-600 border-emerald-500 text-white
+           dark:bg-emerald-600 dark:border-emerald-500 dark:text-white;
+  }
+  .toast-error { @apply bg-rose-600 border-rose-500 text-white; }
+  .toast-info { @apply bg-slate-900 border-slate-700 text-white dark:bg-slate-800; }
+  .toast-icon { @apply shrink-0 mt-0.5; }
+  .toast-message { @apply flex-1 leading-snug; }
+  .toast-close {
+    @apply shrink-0 -mr-1 -mt-1 w-6 h-6 inline-flex items-center justify-center rounded-md
+           text-lg leading-none opacity-70 hover:opacity-100 transition-opacity;
+  }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
 }

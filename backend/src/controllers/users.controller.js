@@ -1,11 +1,12 @@
-import User, {
-  EDUCATION_LEVELS,
-  SEX_OPTIONS,
-  toUserDTO,
-} from "../models/User.js";
+import User, { toUserDTO } from "../models/User.js";
 import EventRegistration from "../models/EventRegistration.js";
 import Media from "../models/Media.js";
 import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
+import {
+  MIN_AGE_YEARS,
+  latestAllowedBirthDate,
+  validateProfile,
+} from "../utils/profileValidation.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
 
@@ -23,41 +24,9 @@ const EDITABLE_FIELDS = [
   "bio",
 ];
 
-export const MIN_AGE_YEARS = 16;
-
-/** The most recent birth date that still satisfies the minimum age. */
-export const latestAllowedBirthDate = () => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - MIN_AGE_YEARS);
-  return d;
-};
-
-const validate = (updates) => {
-  if ("fullName" in updates && !String(updates.fullName || "").trim()) {
-    return "Full name cannot be empty";
-  }
-  if (updates.educationLevel && !EDUCATION_LEVELS.includes(updates.educationLevel)) {
-    return `educationLevel must be one of: ${EDUCATION_LEVELS.join(", ")}`;
-  }
-  if (updates.sex && !SEX_OPTIONS.includes(updates.sex)) {
-    return `sex must be one of: ${SEX_OPTIONS.join(", ")}`;
-  }
-  if (updates.phone && !/^[+\d][\d\s()-]{6,19}$/.test(String(updates.phone).trim())) {
-    return "Phone number looks invalid";
-  }
-  if (updates.dateOfBirth) {
-    const dob = new Date(updates.dateOfBirth);
-    if (Number.isNaN(dob.getTime())) return "dateOfBirth is not a valid date";
-    if (dob > new Date()) return "dateOfBirth cannot be in the future";
-    if (dob > latestAllowedBirthDate()) return `You must be at least ${MIN_AGE_YEARS} years old`;
-    // Guards against obvious nonsense like a year of 1600.
-    if (dob < new Date("1900-01-01")) return "dateOfBirth is unrealistically early";
-  }
-  if (updates.bio && String(updates.bio).length > 500) {
-    return "Bio must be 500 characters or fewer";
-  }
-  return null;
-};
+// Re-exported so existing importers keep working; the rules themselves now
+// live in utils/profileValidation.js, shared with signup.
+export { MIN_AGE_YEARS, latestAllowedBirthDate };
 
 export const getMe = async (req, res, next) => {
   try {
@@ -80,8 +49,17 @@ export const updateMe = async (req, res, next) => {
       return res.status(400).json(formatError("VALIDATION_ERROR", "No editable fields supplied"));
     }
 
-    const problem = validate(updates);
-    if (problem) return res.status(400).json(formatError("VALIDATION_ERROR", problem));
+    const fieldErrors = validateProfile(updates);
+    if (Object.keys(fieldErrors).length > 0) {
+      return res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: Object.values(fieldErrors)[0],
+          // Per field, so the form can put each message under its own input.
+          fields: fieldErrors,
+        },
+      });
+    }
 
     if ("dateOfBirth" in updates) {
       updates.dateOfBirth = updates.dateOfBirth ? new Date(updates.dateOfBirth) : null;

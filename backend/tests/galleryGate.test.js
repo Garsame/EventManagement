@@ -40,6 +40,7 @@ const { default: EventRegistration } = await import("../src/models/EventRegistra
 const { signAccessToken } = await import("../src/utils/token.js");
 const { uploadsDir } = await import("../src/config/storage.js");
 const { default: Message } = await import("../src/models/Message.js");
+const { default: Otp } = await import("../src/models/Otp.js");
 
 // Registration requires a complete profile, so fixtures carry one unless a
 // test is specifically exercising the incomplete case.
@@ -709,15 +710,64 @@ describe("event lifecycle", () => {
 describe("signup with an emailed code", () => {
   const EMAIL = "otp-signup@test.local";
 
+  // Signup now captures the whole profile up front, so a verified account is
+  // complete and never meets the registration gate.
+  const SIGNUP = {
+    fullName: "Code User",
+    email: EMAIL,
+    password: "Secret123",
+    phone: "+252612345678",
+    location: "Mogadishu",
+    institution: "Hormuud University",
+    educationLevel: "bachelors",
+    sex: "male",
+    fieldOfStudy: "Computer Science",
+    dateOfBirth: "2000-01-01",
+    bio: "Testing the signup flow.",
+  };
+
   test("requesting a code does not create the account yet", async () => {
     const res = await request(app)
       .post("/api/auth/signup/request")
-      .send({ fullName: "Code User", email: EMAIL, password: "Secret123" })
+      .send(SIGNUP)
       .expect(201);
 
     assert.equal(res.body.email, EMAIL);
     assert.ok(res.body.devCode, "dev code expected while SMTP is off");
     assert.equal(await User.countDocuments({ email: EMAIL }), 0);
+  });
+
+  test("a missing profile field is refused, per field, and writes nothing", async () => {
+    const { phone, institution, ...incomplete } = SIGNUP;
+    const res = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ ...incomplete, email: "incomplete@test.local" })
+      .expect(400);
+
+    assert.equal(res.body.error.code, "VALIDATION_ERROR");
+    // Every problem comes back at once, keyed by field, so the form can put
+    // each message under its own input.
+    assert.ok(res.body.error.fields.phone, "expected a phone error");
+    assert.ok(res.body.error.fields.institution, "expected an institution error");
+    assert.equal(await Otp.countDocuments({ email: "incomplete@test.local" }), 0);
+  });
+
+  test("an invalid phone number is refused", async () => {
+    const res = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ ...SIGNUP, email: "badphone@test.local", phone: "abc" })
+      .expect(400);
+    assert.ok(res.body.error.fields.phone);
+  });
+
+  test("someone under the minimum age is refused", async () => {
+    const tooYoung = new Date();
+    tooYoung.setFullYear(tooYoung.getFullYear() - 10);
+    const res = await request(app)
+      .post("/api/auth/signup/request")
+      .send({ ...SIGNUP, email: "young@test.local", dateOfBirth: tooYoung.toISOString().slice(0, 10) })
+      .expect(400);
+    assert.ok(res.body.error.fields.dateOfBirth);
   });
 
   test("a wrong code is rejected and counts against the attempt limit", async () => {
@@ -739,10 +789,10 @@ describe("signup with an emailed code", () => {
     assert.equal(await User.countDocuments({ email: EMAIL }), 0);
   });
 
-  test("the correct code creates the account and signs them in", async () => {
+  test("the correct code creates a complete account and signs them in", async () => {
     const start = await request(app)
       .post("/api/auth/signup/request")
-      .send({ fullName: "Code User", email: EMAIL, password: "Secret123" })
+      .send(SIGNUP)
       .expect(201);
 
     const res = await request(app)
@@ -752,7 +802,14 @@ describe("signup with an emailed code", () => {
 
     assert.ok(res.body.accessToken && res.body.refreshToken, "should be signed in immediately");
     assert.equal(res.body.user.email, EMAIL);
-    assert.equal(res.body.user.profileComplete, false);
+    // The whole point of collecting the profile at signup: no gate afterwards.
+    assert.equal(res.body.user.profileComplete, true);
+    assert.deepEqual(res.body.user.missingProfileFields, []);
+    assert.equal(res.body.user.phone, SIGNUP.phone);
+    assert.equal(res.body.user.institution, SIGNUP.institution);
+    assert.equal(res.body.user.educationLevel, SIGNUP.educationLevel);
+    assert.equal(res.body.user.sex, SIGNUP.sex);
+    assert.equal(res.body.user.fieldOfStudy, SIGNUP.fieldOfStudy);
     assert.equal(await User.countDocuments({ email: EMAIL }), 1);
 
     // The code is single use.
@@ -760,16 +817,43 @@ describe("signup with an emailed code", () => {
       .post("/api/auth/signup/verify")
       .send({ email: EMAIL, code: start.body.devCode })
       .expect(400);
+  });
 
+  test("that new account can register for an event straight away", async () => {
+    // No profile-completion step in between - this is the behaviour the
+    // three-step signup exists to produce.
+    const signIn = await request(app)
+      .post("/api/auth/login")
+      .send({ email: EMAIL, password: SIGNUP.password })
+      .expect(200);
+
+    const event = await Event.create({
+      title: "Open To New Signups",
+      startDateTime: new Date(Date.now() + 86400000),
+      endDateTime: new Date(Date.now() + 90000000),
+      status: "registration-open",
+      published: true,
+      visibility: "public",
+      createdBy: admin.user._id,
+    });
+
+    await request(app)
+      .post(`/api/events/${event._id}/register`)
+      .set("Authorization", `Bearer ${signIn.body.accessToken}`)
+      .expect(201);
+
+    await EventRegistration.deleteMany({ eventId: event._id });
+    await event.deleteOne();
     await User.deleteOne({ email: EMAIL });
   });
 
   test("refuses an address that is already registered", async () => {
     const res = await request(app)
       .post("/api/auth/signup/request")
-      .send({ fullName: "Dup", email: "attendee@test.local", password: "Secret123" })
+      .send({ ...SIGNUP, email: "attendee@test.local" })
       .expect(409);
     assert.equal(res.body.error.code, "EMAIL_EXISTS");
+    assert.ok(res.body.error.fields.email, "the form needs it keyed to the email field");
   });
 });
 

@@ -10,9 +10,19 @@ const otpSchema = new mongoose.Schema({
   // Only the hash is stored, so a database leak does not expose live codes.
   codeHash: { type: String, required: true },
   // Signup holds the pending account here; no User row exists until verified.
+  // The whole profile rides along, because signup now captures it up front -
+  // so a verified account is complete and never meets the registration gate.
   payload: {
     fullName: String,
     passwordHash: String,
+    phone: String,
+    location: String,
+    institution: String,
+    educationLevel: String,
+    fieldOfStudy: String,
+    sex: String,
+    dateOfBirth: Date,
+    bio: String,
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   attempts: { type: Number, default: 0 },

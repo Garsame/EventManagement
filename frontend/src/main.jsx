@@ -6,6 +6,7 @@ import { ThemeProvider } from "./context/ThemeContext.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { AdminAuthProvider } from "./context/AdminAuthContext.jsx";
 import { PhotographerAuthProvider } from "./context/PhotographerAuthContext.jsx";
+import { ToastProvider } from "./context/ToastContext.jsx";
 import "./styles/global.css";
 
 // One-time cleanup: before the public/admin/photographer realms were split
@@ -21,16 +22,20 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        {/* Three independent auth realms, each with its own storage and axios
-            client (see api/realm.js), all mounted together so their routes
-            can live side by side without sharing a session. */}
-        <AuthProvider>
-          <AdminAuthProvider>
-            <PhotographerAuthProvider>
-              <App />
-            </PhotographerAuthProvider>
-          </AdminAuthProvider>
-        </AuthProvider>
+        {/* Above the realms and the router, so a toast raised just before a
+            redirect is still on screen after the route changes. */}
+        <ToastProvider>
+          {/* Three independent auth realms, each with its own storage and axios
+              client (see api/realm.js), all mounted together so their routes
+              can live side by side without sharing a session. */}
+          <AuthProvider>
+            <AdminAuthProvider>
+              <PhotographerAuthProvider>
+                <App />
+              </PhotographerAuthProvider>
+            </AdminAuthProvider>
+          </AuthProvider>
+        </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>

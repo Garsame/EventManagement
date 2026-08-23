@@ -10,8 +10,26 @@ import Otp, {
 } from "../models/Otp.js";
 import { sendOtpEmail } from "../config/mailer.js";
 import { signAccessToken, signRefreshToken } from "../utils/token.js";
+import { validateProfile } from "../utils/profileValidation.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
+
+/** Same shape as the profile editor's, so one form renderer handles both. */
+const fieldError = (fields) => ({
+  error: { code: "VALIDATION_ERROR", message: Object.values(fields)[0], fields },
+});
+
+// Captured at signup so the account is complete the moment it is verified.
+const PROFILE_FIELDS = [
+  "phone",
+  "location",
+  "institution",
+  "educationLevel",
+  "fieldOfStudy",
+  "sex",
+  "dateOfBirth",
+  "bio",
+];
 
 const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
 const isValidPassword = (pwd) => typeof pwd === "string" && pwd.length >= 6;
@@ -26,28 +44,46 @@ const issueSession = async (user) => {
 };
 
 /**
- * Step 1 of signup. Holds the account details against a one-time code and
- * emails it. No User document is created until the code is verified, so
- * cancelling leaves nothing behind.
+ * Step 1 of signup. Holds the whole account - profile included - against a
+ * one-time code and emails it. No User document is created until the code is
+ * verified, so cancelling leaves nothing behind.
+ *
+ * The full profile is required here rather than collected after login: an
+ * account that exists is an account that can already register for an event,
+ * so there is no longer a half-finished state to gate.
  */
 export const requestSignupOtp = async (req, res, next) => {
   try {
     const { fullName, password } = req.body || {};
     const email = normalise(req.body?.email);
 
-    if (!fullName || !email || !password) {
-      return res.status(400).json(formatError("VALIDATION_ERROR", "fullName, email, and password are required"));
+    const profile = {};
+    for (const field of PROFILE_FIELDS) {
+      if (req.body?.[field] !== undefined && req.body[field] !== null && req.body[field] !== "") {
+        profile[field] = req.body[field];
+      }
     }
-    if (!isValidEmail(email)) {
-      return res.status(400).json(formatError("VALIDATION_ERROR", "Invalid email format"));
-    }
-    if (!isValidPassword(password)) {
-      return res.status(400).json(formatError("VALIDATION_ERROR", "Password must be at least 6 characters"));
-    }
+
+    // Every required profile field is checked in the same pass as the rest,
+    // so the form gets one complete map of what to fix instead of one error
+    // at a time.
+    const fields = validateProfile({ ...profile, fullName }, { requireAll: true });
+    if (!email) fields.email = "Email is required";
+    else if (!isValidEmail(email)) fields.email = "That email address looks invalid";
+    if (!password) fields.password = "Password is required";
+    else if (!isValidPassword(password)) fields.password = "Password must be at least 6 characters";
+
+    if (Object.keys(fields).length > 0) return res.status(400).json(fieldError(fields));
 
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(409).json(formatError("EMAIL_EXISTS", "Email is already registered"));
+      return res.status(409).json({
+        error: {
+          code: "EMAIL_EXISTS",
+          message: "Email is already registered",
+          fields: { email: "That email is already registered" },
+        },
+      });
     }
 
     // One live code per email and purpose.
@@ -58,7 +94,12 @@ export const requestSignupOtp = async (req, res, next) => {
       email,
       purpose: "signup",
       codeHash: hashCode(code),
-      payload: { fullName, passwordHash: await bcrypt.hash(password, 10) },
+      payload: {
+        ...profile,
+        dateOfBirth: profile.dateOfBirth ? new Date(profile.dateOfBirth) : null,
+        fullName: String(fullName).trim(),
+        passwordHash: await bcrypt.hash(password, 10),
+      },
       expiresAt: expiryDate(),
     });
 
@@ -122,10 +163,20 @@ export const verifySignupOtp = async (req, res, next) => {
       return res.status(409).json(formatError("EMAIL_EXISTS", "Email is already registered"));
     }
 
+    // The profile captured at step 1 is written with the account, so the new
+    // user lands on a complete profile and can register for events straight
+    // away - profileComplete is true from the very first request.
+    // _id is stripped as well: payload is a Mongoose subdocument and carries
+    // its own, which would otherwise become the new user's id.
+    const { passwordHash, fullName, userId, _id, ...profile } = otp.payload.toObject
+      ? otp.payload.toObject()
+      : otp.payload;
+
     const user = await User.create({
-      fullName: otp.payload.fullName,
+      ...profile,
+      fullName,
       email,
-      passwordHash: otp.payload.passwordHash,
+      passwordHash,
       role: "attendee",
       refreshTokens: [],
     });
