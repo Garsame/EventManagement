@@ -334,6 +334,34 @@
   .progress-track { @apply w-full h-2 rounded-full bg-slate-200 overflow-hidden dark:bg-slate-800; }
   .progress-fill { @apply h-full rounded-full bg-brand-600 transition-[width] duration-500 dark:bg-brand-400; }
 
+  /* QR scanner.
+     html5-qrcode sizes its <video> once, as a fixed pixel width taken from
+     the container at start time, with no height and no revisit on resize.
+     These rules take that back: the preview is fluid, capped so it does not
+     dominate a desktop card, and full-bleed on a phone.
+
+     Height stays `auto` deliberately. The decoder maps its scan region with
+     videoWidth / clientWidth, so a cropped `object-fit: cover` box would put
+     that mapping out by exactly the cropped margin and QR codes near the
+     edges would stop resolving. Natural height keeps the mapping honest. */
+  .qr-scanner-wrap { @apply w-full flex flex-col items-center; }
+  .qr-scanner {
+    @apply w-full max-w-sm rounded-xl overflow-hidden bg-slate-900 relative mx-auto;
+  }
+  .qr-scanner:not(.is-error) { @apply min-h-48; }
+  .qr-scanner video {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    /* A phone's rear camera is portrait; without this the preview can push
+       the check-in button off-screen on a small handset. */
+    max-height: 60vh;
+    object-fit: contain;
+  }
+  /* The library's own overlay canvas must track the video, not float loose. */
+  .qr-scanner canvas { @apply max-w-full; }
+  #qr-shaded-region { @apply pointer-events-none; }
+
   /* Admin event card.
      Four bands, each answering one question, separated by hairlines rather
      than by guesswork: what is this, how is it doing, who is on it, what can

@@ -152,8 +152,10 @@ export default function AdminCheckInConsolePage() {
             {!eventId && <p className="helper-text self-center">Select an event to begin.</p>}
           </div>
 
+          {/* No flex wrapper: as a flex item the scanner shrinks to its
+              content, and html5-qrcode reads that width to size the video. */}
           {scanning && eventId && (
-            <div className="mb-4 flex justify-center">
+            <div className="mb-4">
               <QrScanner onScan={handleScan} />
             </div>
           )}
