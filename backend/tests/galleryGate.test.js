@@ -69,6 +69,29 @@ const makeUser = async (role, email, overrides = {}) => {
   };
 };
 
+/**
+ * Approval is what mints the registration code and QR token - registering
+ * alone issues nothing - so any test needing something scannable goes through
+ * the real admin endpoint to get it, then reads the codes back from the row.
+ */
+const approveRegistration = async (eventId, registrationId, approvalStatus = "approved") => {
+  await request(app)
+    .patch(`/api/admin/events/${eventId}/registrations/${registrationId}/approval`)
+    .set("Authorization", `Bearer ${admin.token}`)
+    .send({ approvalStatus })
+    .expect(200);
+  return EventRegistration.findById(registrationId).lean();
+};
+
+/** Register as a guest and have the admin approve it, in one step. */
+const registerAndApprove = async (eventEntity, guest) => {
+  const res = await request(app)
+    .post(`/api/events/${eventEntity._id}/register`)
+    .set("Authorization", `Bearer ${guest.token}`)
+    .expect(201);
+  return approveRegistration(eventEntity._id, res.body.registration.id);
+};
+
 let admin;
 let photographer;
 let attendee;
@@ -258,6 +281,7 @@ describe("profile gate on registration", () => {
 });
 
 describe("gallery gate", () => {
+  let registrationId;
   let registrationCode;
   let qrToken;
 
@@ -273,18 +297,53 @@ describe("gallery gate", () => {
     assert.equal(res.body.error.code, "NOT_REGISTERED");
   });
 
-  test("registering issues a code and a QR token", async () => {
+  test("registering creates a pending request and issues no code", async () => {
     const res = await request(app)
       .post(`/api/events/${event._id}/register`)
       .set("Authorization", `Bearer ${attendee.token}`)
       .expect(201);
 
-    registrationCode = res.body.registration.registrationCode;
-    qrToken = res.body.registration.qrToken;
+    registrationId = res.body.registration.id;
+
+    assert.equal(res.body.registration.approvalStatus, "pending");
+    assert.equal(res.body.registration.attended, false);
+    // The guest must have nothing to present until an admin decides.
+    assert.equal(res.body.registration.registrationCode, undefined);
+    assert.equal(res.body.registration.qrToken, undefined);
+  });
+
+  test("a pending guest cannot be checked in", async () => {
+    const row = await EventRegistration.findById(registrationId).lean();
+    assert.equal(row.registrationCode, undefined, "no code should exist yet");
+
+    // Nothing to scan, so the door has nothing to match - and even the empty
+    // code must not match the many other registrations that also have none.
+    const res = await request(app)
+      .post(`/api/events/${event._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: "" })
+      .expect(400);
+    assert.equal(res.body.error.code, "VALIDATION_ERROR");
+  });
+
+  test("approving issues the code and QR token", async () => {
+    const row = await approveRegistration(event._id, registrationId);
+    registrationCode = row.registrationCode;
+    qrToken = row.qrToken;
 
     assert.match(registrationCode, /^EVT-[0-9A-F]{6}$/);
     assert.equal(qrToken.length, 64);
-    assert.equal(res.body.registration.attended, false);
+    assert.equal(row.approvalStatus, "approved");
+    assert.ok(row.decidedAt);
+  });
+
+  test("the guest can now see their own code", async () => {
+    const res = await request(app)
+      .get(`/api/events/${event._id}/registration/me`)
+      .set("Authorization", `Bearer ${attendee.token}`)
+      .expect(200);
+    assert.equal(res.body.registration.registrationCode, registrationCode);
+    assert.equal(res.body.registration.approvalStatus, "approved");
   });
 
   test("registering twice reuses the existing registration", async () => {
@@ -329,13 +388,41 @@ describe("gallery gate", () => {
     assert.equal(res.body.error.code, "NOT_REGISTERED");
   });
 
-  test("rejects check-in with a code from no registration", async () => {
+  test("rejects a forged code that belongs to no registration", async () => {
     const res = await request(app)
       .post(`/api/events/${event._id}/checkin`)
       .set("Authorization", `Bearer ${photographer.token}`)
       .send({ registrationCode: "EVT-FFFFFF" })
       .expect(404);
-    assert.equal(res.body.error.code, "NOT_REGISTERED");
+    assert.equal(res.body.error.code, "INVALID_CODE");
+  });
+
+  test("a rejected guest's code stops working at the door", async () => {
+    const guest = await makeUser("attendee", "revoked-code@test.local");
+    const row = await registerAndApprove(event, guest);
+    const code = row.registrationCode;
+    assert.ok(code, "approval should have issued a code");
+
+    // Rejecting revokes it, so a code already in the guest's hands is dead.
+    await approveRegistration(event._id, row._id, "rejected");
+
+    const res = await request(app)
+      .post(`/api/events/${event._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: code })
+      .expect(404);
+    assert.equal(res.body.error.code, "INVALID_CODE");
+
+    const after = await EventRegistration.findById(row._id).lean();
+    assert.equal(after.registrationCode, undefined);
+    assert.equal(after.attended, false);
+
+    // The account itself is untouched - a rejection is per event.
+    const stillThere = await User.findById(guest.user._id).lean();
+    assert.ok(stillThere && stillThere.isActive !== false);
+
+    await EventRegistration.deleteOne({ _id: row._id });
+    await User.deleteOne({ _id: guest.user._id });
   });
 
   test("requires a code or token to check in", async () => {
@@ -382,15 +469,12 @@ describe("check-in window", () => {
   });
 
   test("checkin is refused before the door is opened", async () => {
-    const reg = await request(app)
-      .post(`/api/events/${doorEvent._id}/register`)
-      .set("Authorization", `Bearer ${outsider.token}`)
-      .expect(201);
+    const row = await registerAndApprove(doorEvent, outsider);
 
     const res = await request(app)
       .post(`/api/events/${doorEvent._id}/checkin`)
       .set("Authorization", `Bearer ${photographer.token}`)
-      .send({ registrationCode: reg.body.registration.registrationCode })
+      .send({ registrationCode: row.registrationCode })
       .expect(403);
     assert.equal(res.body.error.code, "CHECKIN_CLOSED");
   });
@@ -422,6 +506,37 @@ describe("check-in window", () => {
       .expect(409);
     assert.equal(res.body.error.code, "ALREADY_CHECKED_IN");
     assert.match(res.body.error.message, /already checked in/i);
+  });
+
+  test("an approved-then-pending guest is turned away", async () => {
+    const guest = await makeUser("attendee", "back-to-pending@test.local");
+    const row = await registerAndApprove(doorEvent, guest);
+    const code = row.registrationCode;
+
+    // Moving back to pending revokes the code, the same as a rejection.
+    await approveRegistration(doorEvent._id, row._id, "pending");
+
+    const res = await request(app)
+      .post(`/api/events/${doorEvent._id}/checkin`)
+      .set("Authorization", `Bearer ${photographer.token}`)
+      .send({ registrationCode: code })
+      .expect(404);
+    assert.equal(res.body.error.code, "INVALID_CODE");
+
+    await EventRegistration.deleteOne({ _id: row._id });
+    await User.deleteOne({ _id: guest.user._id });
+  });
+
+  test("approval cannot be withdrawn once the guest is through the door", async () => {
+    const reg = await EventRegistration.findOne({ eventId: doorEvent._id, userId: outsider.user._id });
+    assert.equal(reg.attended, true, "this guest should already be checked in");
+
+    const res = await request(app)
+      .patch(`/api/admin/events/${doorEvent._id}/registrations/${reg._id}/approval`)
+      .set("Authorization", `Bearer ${admin.token}`)
+      .send({ approvalStatus: "rejected" })
+      .expect(409);
+    assert.equal(res.body.error.code, "ALREADY_CHECKED_IN");
   });
 
   test("closing check-in blocks further scans again", async () => {
@@ -1325,15 +1440,12 @@ describe("activity log", () => {
 
   test("checking a guest in is recorded with the guest and event named", async () => {
     const checkinAttendee = await makeUser("attendee", "logged-checkin@test.local");
-    const reg = await request(app)
-      .post(`/api/events/${event._id}/register`)
-      .set("Authorization", `Bearer ${checkinAttendee.token}`)
-      .expect(201);
+    const reg = await registerAndApprove(event, checkinAttendee);
 
     await request(app)
       .post(`/api/events/${event._id}/checkin`)
       .set("Authorization", `Bearer ${photographer.token}`)
-      .send({ registrationCode: reg.body.registration.registrationCode })
+      .send({ registrationCode: reg.registrationCode })
       .expect(200);
 
     const feed = await request(app)
@@ -1435,6 +1547,11 @@ describe("premium events", () => {
     assert.equal(res.body.registration.currency, "USD");
     assert.equal(res.body.registration.paymentStatus, "pending");
     assert.equal(res.body.registration.paymentReference, "EVC-12345");
+    assert.equal(res.body.registration.approvalStatus, "pending");
+
+    // Approve so the rest of this block exercises the payment gate rather
+    // than stopping at the approval one.
+    await approveRegistration(premiumEvent._id, res.body.registration.id);
   });
 
   test("check-in is refused while payment is pending", async () => {

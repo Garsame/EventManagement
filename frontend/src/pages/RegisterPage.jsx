@@ -7,6 +7,7 @@ import Select from "../components/ui/Select.jsx";
 import Textarea from "../components/ui/Textarea.jsx";
 import Button from "../components/ui/Button.jsx";
 import Alert from "../components/ui/Alert.jsx";
+import Stepper from "../components/ui/Stepper.jsx";
 import PageHeader from "../components/ui/PageHeader.jsx";
 import PublicLayout from "../components/layout/PublicLayout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -258,21 +259,7 @@ export default function RegisterPage() {
 
         <Card>
           {/* Progress across the three steps */}
-          <div className="stepper mb-6" role="list">
-            {STEPS.map((s, i) => (
-              <div
-                key={s.key}
-                role="listitem"
-                className={`step ${i < stepIndex ? "is-done" : ""} ${i === stepIndex ? "is-current" : ""}`}
-                style={{ paddingRight: i < STEPS.length - 1 ? "0.5rem" : 0 }}
-              >
-                <div className="step-bar" />
-                <div className="step-label">
-                  {i + 1}. {s.label}
-                </div>
-              </div>
-            ))}
-          </div>
+          <Stepper steps={STEPS} current={stepIndex} className="mb-6" />
 
           {/* ---------- Step 1: profile details ---------- */}
           {step === "details" && (

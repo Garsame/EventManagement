@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import mongoose from "mongoose";
 import Event, { EVENT_STATUSES } from "../models/Event.js";
 import User from "../models/User.js";
@@ -5,8 +6,18 @@ import Media from "../models/Media.js";
 import EventRegistration from "../models/EventRegistration.js";
 import { isStorageReady, removeMedia, storeMedia } from "../config/storage.js";
 import { logActivity } from "../utils/activityLog.js";
+import {
+  sendRegistrationApprovedEmail,
+  sendRegistrationRejectedEmail,
+} from "../config/mailer.js";
 
 const formatError = (code, message) => ({ error: { code, message } });
+
+const appBaseUrl = () =>
+  (process.env.APP_BASE_URL || process.env.CORS_ORIGIN || "http://localhost:5173").replace(/\/+$/, "");
+
+const generateRegistrationCode = () => `EVT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+const generateQrToken = () => crypto.randomBytes(32).toString("hex");
 
 // `published` is not in this list on purpose: the console UI only exposes
 // status, and published is derived from it below rather than being settable
@@ -186,6 +197,14 @@ export const listAllEvents = async (req, res, next) => {
             _id: "$eventId",
             total: { $sum: 1 },
             attended: { $sum: { $cond: ["$attended", 1, 0] } },
+            // Registrations made before approval existed have no
+            // approvalStatus; they are counted as pending, which is what an
+            // undecided registration is.
+            approved: { $sum: { $cond: [{ $eq: ["$approvalStatus", "approved"] }, 1, 0] } },
+            rejected: { $sum: { $cond: [{ $eq: ["$approvalStatus", "rejected"] }, 1, 0] } },
+            pendingApproval: {
+              $sum: { $cond: [{ $in: ["$approvalStatus", ["pending", null]] }, 1, 0] },
+            },
             paid: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] } },
             pendingPayment: { $sum: { $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0] } },
             revenue: { $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$amountDue", 0] } },
@@ -206,6 +225,9 @@ export const listAllEvents = async (req, res, next) => {
           mediaCount: mediaBy.get(String(e._id)) || 0,
           registrationCount: reg?.total || 0,
           attendedCount: reg?.attended || 0,
+          approvedCount: reg?.approved || 0,
+          rejectedCount: reg?.rejected || 0,
+          pendingApprovalCount: reg?.pendingApproval || 0,
           paidCount: reg?.paid || 0,
           pendingPaymentCount: reg?.pendingPayment || 0,
           revenue: reg?.revenue || 0,
@@ -364,9 +386,15 @@ export const listEventRegistrations = async (req, res, next) => {
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
 
     const registrations = await EventRegistration.find({ eventId })
-      .populate("userId", "fullName email phone institution educationLevel avatarUrl")
+      // Everything the guest submitted, so the admin can review a person
+      // properly before deciding rather than approving from a name alone.
+      .populate(
+        "userId",
+        "fullName email phone location institution educationLevel fieldOfStudy sex dateOfBirth bio avatarUrl createdAt"
+      )
       .populate("checkedInBy", "fullName role")
       .populate("paymentConfirmedBy", "fullName role")
+      .populate("decidedBy", "fullName role")
       .sort({ registeredAt: -1 })
       .lean();
 
@@ -378,12 +406,22 @@ export const listEventRegistrations = async (req, res, next) => {
             fullName: r.userId.fullName,
             email: r.userId.email,
             phone: r.userId.phone || "",
+            location: r.userId.location || "",
             institution: r.userId.institution || "",
             educationLevel: r.userId.educationLevel || "",
+            fieldOfStudy: r.userId.fieldOfStudy || "",
+            sex: r.userId.sex || "",
+            dateOfBirth: r.userId.dateOfBirth || null,
+            bio: r.userId.bio || "",
             avatarUrl: r.userId.avatarUrl || "",
+            memberSince: r.userId.createdAt || null,
           }
         : null,
-      registrationCode: r.registrationCode,
+      approvalStatus: r.approvalStatus || "pending",
+      decidedAt: r.decidedAt || null,
+      decidedBy: r.decidedBy ? { fullName: r.decidedBy.fullName, role: r.decidedBy.role } : null,
+      decisionNote: r.decisionNote || "",
+      registrationCode: r.registrationCode || "",
       registeredAt: r.registeredAt,
       attended: r.attended,
       checkedInAt: r.checkedInAt || null,
@@ -400,6 +438,9 @@ export const listEventRegistrations = async (req, res, next) => {
     }));
 
     const attended = rows.filter((r) => r.attended).length;
+    const pending = rows.filter((r) => r.approvalStatus === "pending").length;
+    const approved = rows.filter((r) => r.approvalStatus === "approved").length;
+    const rejected = rows.filter((r) => r.approvalStatus === "rejected").length;
     const paid = rows.filter((r) => r.paymentStatus === "paid").length;
     const pendingPayment = rows.filter((r) => r.paymentStatus === "pending").length;
     const revenue = rows.filter((r) => r.paymentStatus === "paid").reduce((sum, r) => sum + (r.amountDue || 0), 0);
@@ -415,7 +456,13 @@ export const listEventRegistrations = async (req, res, next) => {
         currency: event.currency,
         plans: event.plans || [],
       },
-      counts: { total: rows.length, attended, notAttended: rows.length - attended, paid, pendingPayment, revenue },
+      counts: {
+        total: rows.length,
+        attended,
+        notAttended: rows.length - attended,
+        pending, approved, rejected,
+        paid, pendingPayment, revenue,
+      },
       registrations: rows,
     });
   } catch (err) {
@@ -430,6 +477,113 @@ export const listEventRegistrations = async (req, res, next) => {
  * integration would set paymentStatus/paymentMethod automatically instead,
  * without needing any schema change here.
  */
+/**
+ * The admin's decision on who actually attends.
+ *
+ * Approving is what mints the registration code and QR token - they do not
+ * exist before this - and emails them to the guest. Rejecting revokes them, so
+ * a code that was already sent stops working at the door.
+ *
+ * A rejection is scoped to this event only: nothing on the user's account is
+ * touched, and they remain free to register for anything else.
+ */
+export const setRegistrationApproval = async (req, res, next) => {
+  try {
+    const { eventId, registrationId } = req.params;
+    const { approvalStatus, note = "" } = req.body || {};
+
+    if (!["pending", "approved", "rejected"].includes(approvalStatus)) {
+      return res.status(400).json(
+        formatError("VALIDATION_ERROR", "approvalStatus must be pending, approved, or rejected")
+      );
+    }
+
+    const registration = await EventRegistration.findOne({ _id: registrationId, eventId });
+    if (!registration) return res.status(404).json(formatError("NOT_FOUND", "Registration not found"));
+
+    // Someone already through the door cannot be un-approved: their attendance
+    // is a fact, and revoking the code would not undo it.
+    if (registration.attended && approvalStatus !== "approved") {
+      return res.status(409).json(
+        formatError("ALREADY_CHECKED_IN", "This guest is already checked in, so their approval cannot be withdrawn.")
+      );
+    }
+
+    const event = await Event.findById(eventId).select("title startDateTime location isPremium").lean();
+    const guest = await User.findById(registration.userId).select("fullName email").lean();
+
+    registration.approvalStatus = approvalStatus;
+    registration.decidedAt = new Date();
+    registration.decidedBy = req.user.userId;
+    registration.decisionNote = String(note || "").trim();
+
+    if (approvalStatus === "approved") {
+      // Issued once and then kept, so re-approving after a mistaken rejection
+      // does not invalidate a code the guest may already be holding.
+      if (!registration.registrationCode) registration.registrationCode = generateRegistrationCode();
+      if (!registration.qrToken) registration.qrToken = generateQrToken();
+    } else {
+      // Rejected or moved back to pending: the guest must have nothing to
+      // present. Clearing these is what makes an already-emailed code dead.
+      registration.registrationCode = undefined;
+      registration.qrToken = undefined;
+    }
+
+    await registration.save();
+
+    let emailDelivered = false;
+    if (guest?.email && approvalStatus !== "pending") {
+      try {
+        const result = approvalStatus === "approved"
+          ? await sendRegistrationApprovedEmail({
+              to: guest.email,
+              fullName: guest.fullName,
+              event,
+              registrationCode: registration.registrationCode,
+              qrToken: registration.qrToken,
+              note: registration.decisionNote,
+              statusUrl: `${appBaseUrl()}/dashboard/events/${eventId}/registration`,
+            })
+          : await sendRegistrationRejectedEmail({
+              to: guest.email,
+              fullName: guest.fullName,
+              event,
+              note: registration.decisionNote,
+              eventsUrl: `${appBaseUrl()}/events`,
+            });
+        emailDelivered = result.delivered;
+      } catch (err) {
+        // The decision stands even if the mail server is unreachable; the
+        // admin is told so they can pass the details on another way.
+        console.warn("Could not email the registration decision:", err.message);
+      }
+    }
+
+    await logActivity({
+      actor: req.user,
+      action: `registration.${approvalStatus}`,
+      summary: `${approvalStatus === "approved" ? "Approved" : approvalStatus === "rejected" ? "Rejected" : "Reset to pending"} ${guest?.fullName || "a guest"} for "${event?.title || "an event"}"`,
+      targetType: "registration",
+      targetId: registration._id,
+      targetLabel: guest?.fullName || "",
+    });
+
+    return res.json({
+      registration: {
+        id: registration._id,
+        approvalStatus: registration.approvalStatus,
+        decidedAt: registration.decidedAt,
+        decisionNote: registration.decisionNote,
+        registrationCode: registration.registrationCode || "",
+        attended: registration.attended,
+      },
+      emailDelivered,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export const setRegistrationPayment = async (req, res, next) => {
   try {
     const { eventId, registrationId } = req.params;

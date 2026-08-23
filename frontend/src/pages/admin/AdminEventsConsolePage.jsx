@@ -271,120 +271,148 @@ export default function AdminEventsConsolePage({ premium = false }) {
           const isChanging = changingEventId === event._id;
           const pickable = photographers.filter((p) => p.id !== assignedPhotographer?.id);
           return (
-            <Card key={event._id} className="!p-4">
-              <div className="flex gap-4 flex-col sm:flex-row items-start">
-                <div className="cover-thumb">
+            <Card key={event._id} className="event-admin-card">
+              {/* --- Header: identity and state, nothing else --- */}
+              <div className="event-admin-head">
+                <div className="cover-thumb shrink-0">
                   {event.coverImageUrl
                     ? <img src={event.coverImageUrl} alt="" />
                     : <span className="text-3xl" aria-hidden="true">🖼️</span>}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <h4 className="m-0 text-base font-bold truncate">{event.title}</h4>
-                      <p className="text-muted m-0 mt-1 text-sm">{formatDate(event.startDateTime)} · {event.location || "Location TBA"}</p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <Badge variant={STATUS_BADGE[event.status]}>{STATUS_LABEL[event.status]}</Badge>
-                      <Badge variant={event.visibility === "public" ? "info" : "neutral"}>{event.visibility}</Badge>
-                      <Badge variant={event.checkInOpen ? "success" : "neutral"}>
-                        {event.checkInOpen ? "Check-in open" : "Check-in closed"}
+                <div className="min-w-0 flex-1">
+                  <h4 className="m-0 text-base font-bold truncate">{event.title}</h4>
+                  <p className="text-muted m-0 mt-1 text-sm truncate">
+                    {formatDate(event.startDateTime)} · {event.location || "Location TBA"}
+                  </p>
+                  <div className="flex gap-1.5 flex-wrap items-center mt-2">
+                    <Badge variant={STATUS_BADGE[event.status]}>{STATUS_LABEL[event.status]}</Badge>
+                    <Badge variant={event.visibility === "public" ? "info" : "neutral"}>{event.visibility}</Badge>
+                    <Badge variant={event.checkInOpen ? "success" : "neutral"}>
+                      {event.checkInOpen ? "Check-in open" : "Check-in closed"}
+                    </Badge>
+                    {premium && (event.plans || []).length > 0 && (
+                      <Badge variant="premium">
+                        {event.plans.length} plan{event.plans.length === 1 ? "" : "s"} · {event.currency || "USD"}{" "}
+                        {Math.min(...event.plans.map((p) => p.price))}
+                        {event.plans.length > 1 && `–${Math.max(...event.plans.map((p) => p.price))}`}
                       </Badge>
-                    </div>
-                  </div>
-
-                  {premium && (
-                    <div className="flex gap-2 flex-wrap mt-2">
-                      {(event.plans || []).map((p) => (
-                        <Badge key={p._id || p.name} variant="premium">
-                          {p.name} — {event.currency || "USD"} {p.price}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="grid grid-4 mt-3">
-                    <div className="card-muted !p-2"><div className="text-xs uppercase">Registered</div><strong>{event.registrationCount}</strong></div>
-                    <div className="card-muted !p-2"><div className="text-xs uppercase">Attended</div><strong>{event.attendedCount}</strong></div>
-                    <div className="card-muted !p-2"><div className="text-xs uppercase">Media</div><strong>{event.mediaCount}</strong></div>
-                    <div className="card-muted !p-2"><div className="text-xs uppercase">Photographers</div><strong>{event.photographers.length}</strong></div>
-                  </div>
-
-                  {premium && (
-                    <div className="flex gap-3 flex-wrap mt-2 text-xs text-muted">
-                      <span>Paid: <strong className="text-emerald-600 dark:text-emerald-400">{event.paidCount || 0}</strong></span>
-                      <span>Pending: <strong className="text-amber-600 dark:text-amber-400">{event.pendingPaymentCount || 0}</strong></span>
-                      <span>Revenue: <strong>{event.currency || "USD"} {event.revenue || 0}</strong></span>
-                    </div>
-                  )}
-
-                  <div className="mt-3">
-                    <div className="input-label mb-2">Photographer</div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {assignedPhotographer ? (
-                        <span className="card-muted !inline-flex items-center gap-2 !py-2 !px-3">
-                          <Avatar user={{ ...assignedPhotographer, initials: assignedPhotographer.fullName?.[0] || "?" }} size="sm" />
-                          <span className="font-semibold">{assignedPhotographer.fullName}</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted text-sm">No photographer assigned.</span>
-                      )}
-
-                      {isChanging ? (
-                        <>
-                          <select
-                            className="input !w-56"
-                            defaultValue=""
-                            disabled={busyId === event._id}
-                            onChange={(e) => {
-                              if (e.target.value) setPrimaryPhotographer(event, e.target.value);
-                            }}
-                          >
-                            <option value="" disabled>Choose a photographer…</option>
-                            {pickable.map((p) => (
-                              <option key={p.id} value={p.id}>{p.fullName}</option>
-                            ))}
-                          </select>
-                          <Button type="button" variant="ghost" onClick={() => setChangingEventId(null)} disabled={busyId === event._id}>
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setChangingEventId(event._id)}
-                          disabled={busyId === event._id || pickable.length === 0}
-                          title={pickable.length === 0 ? "No other active photographers available" : undefined}
-                        >
-                          {assignedPhotographer ? "Change photographer" : "Assign a photographer"}
-                        </Button>
-                      )}
-                    </div>
-                    {photographers.length === 0 && (
-                      <p className="helper-text mt-2 mb-0">No active photographer accounts available.</p>
                     )}
                   </div>
+                </div>
 
-                  <div className="flex gap-2 flex-wrap mt-3">
-                    <Button
-                      type="button"
-                      variant={event.checkInOpen ? "ghost" : "primary"}
-                      onClick={() => toggleCheckIn(event)}
-                      disabled={busyId === event._id || (!event.checkInOpen && event.registrationCount === 0)}
-                      title={!event.checkInOpen && event.registrationCount === 0 ? "No one has registered for this event yet" : undefined}
+                {/* Needs-attention count is the one number worth interrupting for. */}
+                {event.pendingApprovalCount > 0 && (
+                  <Link
+                    to={`/maamul/events/${event._id}/registrations`}
+                    className="attention-pill shrink-0"
+                    title="Registrations waiting for your decision"
+                  >
+                    <strong>{event.pendingApprovalCount}</strong>
+                    <span>awaiting approval</span>
+                  </Link>
+                )}
+              </div>
+
+              {/* --- Metrics: one row, reading left to right through the funnel --- */}
+              <div className="event-metrics">
+                <Link to={`/maamul/events/${event._id}/registrations`} className="event-metric">
+                  <span className="event-metric-value">{event.registrationCount}</span>
+                  <span className="event-metric-label">Requested</span>
+                </Link>
+                <Link to={`/maamul/events/${event._id}/registrations`} className="event-metric">
+                  <span className="event-metric-value text-emerald-600 dark:text-emerald-400">
+                    {event.approvedCount ?? 0}
+                  </span>
+                  <span className="event-metric-label">Approved</span>
+                </Link>
+                <Link to={`/maamul/events/${event._id}/registrations`} className="event-metric">
+                  <span className="event-metric-value">{event.attendedCount}</span>
+                  <span className="event-metric-label">Checked in</span>
+                </Link>
+                <Link to={`/maamul/events/${event._id}/media`} className="event-metric">
+                  <span className="event-metric-value">{event.mediaCount}</span>
+                  <span className="event-metric-label">Media</span>
+                </Link>
+                {premium && (
+                  <div className="event-metric">
+                    <span className="event-metric-value">{event.currency || "USD"} {event.revenue || 0}</span>
+                    <span className="event-metric-label">
+                      Revenue · {event.paidCount || 0} paid
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* --- Crew: the one assignment this event needs --- */}
+              <div className="event-admin-row">
+                <span className="event-row-label">Photographer</span>
+                {isChanging ? (
+                  <div className="flex items-center gap-2 flex-wrap flex-1">
+                    <select
+                      className="select !w-56 !py-2"
+                      defaultValue=""
+                      disabled={busyId === event._id}
+                      onChange={(e) => { if (e.target.value) setPrimaryPhotographer(event, e.target.value); }}
                     >
-                      {event.checkInOpen ? "Close check-in" : "Open check-in"}
-                    </Button>
-                    <Link to={`/maamul/events/${event._id}/registrations`} className="btn btn-ghost">View registrations</Link>
-                    <Link to={`/maamul/events/${event._id}/media`} className="btn btn-ghost">Manage media</Link>
-                    <Button type="button" variant="ghost" onClick={() => openEdit(event)} disabled={busyId === event._id}>Edit</Button>
-                    <Button type="button" variant="danger" onClick={() => setDeleteTarget(event)} disabled={busyId === event._id}>
-                      {busyId === event._id ? "Working…" : "Delete"}
+                      <option value="" disabled>Choose a photographer…</option>
+                      {pickable.map((p) => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+                    </select>
+                    <Button type="button" variant="ghost" onClick={() => setChangingEventId(null)} disabled={busyId === event._id}>
+                      Cancel
                     </Button>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    {assignedPhotographer ? (
+                      <span className="inline-flex items-center gap-2 min-w-0">
+                        <Avatar user={{ ...assignedPhotographer, initials: assignedPhotographer.fullName?.[0] || "?" }} size="sm" />
+                        <span className="font-semibold truncate">{assignedPhotographer.fullName}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted text-sm">Nobody assigned</span>
+                    )}
+                    <button
+                      type="button"
+                      className="link-button ml-auto"
+                      onClick={() => setChangingEventId(event._id)}
+                      disabled={busyId === event._id || pickable.length === 0}
+                      title={pickable.length === 0 ? "No other active photographers available" : undefined}
+                    >
+                      {assignedPhotographer ? "Change" : "Assign"}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* --- Actions: the primary one first, destructive one last --- */}
+              <div className="event-admin-actions">
+                <Button
+                  type="button"
+                  variant={event.checkInOpen ? "secondary" : "primary"}
+                  onClick={() => toggleCheckIn(event)}
+                  disabled={busyId === event._id || (!event.checkInOpen && (event.approvedCount ?? 0) === 0)}
+                  title={
+                    !event.checkInOpen && (event.approvedCount ?? 0) === 0
+                      ? "Approve at least one registration before opening check-in"
+                      : undefined
+                  }
+                >
+                  {event.checkInOpen ? "Close check-in" : "Open check-in"}
+                </Button>
+                <Link to={`/maamul/events/${event._id}/registrations`} className="btn btn-ghost">
+                  Registrations
+                </Link>
+                <Link to={`/maamul/events/${event._id}/media`} className="btn btn-ghost">Media</Link>
+                <Button type="button" variant="ghost" onClick={() => openEdit(event)} disabled={busyId === event._id}>
+                  Edit
+                </Button>
+                <Button
+                  type="button" variant="danger" className="ml-auto"
+                  onClick={() => setDeleteTarget(event)} disabled={busyId === event._id}
+                >
+                  {busyId === event._id ? "Working…" : "Delete"}
+                </Button>
               </div>
             </Card>
           );

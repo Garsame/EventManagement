@@ -168,14 +168,24 @@ export const getMyRegistrations = async (req, res, next) => {
         const mediaCount = countByEvent.get(String(event._id)) || 0;
         const hasEnded = new Date(event.endDateTime) < now;
 
-        let stage = "registered";
+        const approvalStatus = reg.approvalStatus || "pending";
+
+        // Approval sits between requesting a place and turning up for it, so
+        // a guest can see they are waiting on the organiser rather than on
+        // the day of the event.
+        let stage = approvalStatus === "approved" ? "approved" : "requested";
         if (reg.attended && mediaCount > 0) stage = "gallery-ready";
         else if (reg.attended) stage = "checked-in";
 
         return {
           registrationId: reg._id,
-          registrationCode: reg.registrationCode,
-          qrToken: reg.qrToken,
+          // Codes exist only once approved, and are withheld otherwise so an
+          // unapproved guest has nothing to show at the door.
+          registrationCode: approvalStatus === "approved" ? reg.registrationCode : "",
+          qrToken: approvalStatus === "approved" ? reg.qrToken : "",
+          approvalStatus,
+          decidedAt: reg.decidedAt || null,
+          decisionNote: reg.decisionNote || "",
           attended: reg.attended,
           registeredAt: reg.registeredAt,
           checkedInAt: reg.checkedInAt || null,
@@ -204,6 +214,9 @@ export const getMyRegistrations = async (req, res, next) => {
       total: items.length,
       attended: items.filter((i) => i.attended).length,
       pending: items.filter((i) => !i.attended && !i.hasEnded).length,
+      awaitingApproval: items.filter((i) => i.approvalStatus === "pending" && !i.hasEnded).length,
+      approved: items.filter((i) => i.approvalStatus === "approved").length,
+      rejected: items.filter((i) => i.approvalStatus === "rejected").length,
       missed: items.filter((i) => !i.attended && i.hasEnded).length,
       galleriesAvailable: items.filter((i) => i.stage === "gallery-ready").length,
       photosAvailable: items

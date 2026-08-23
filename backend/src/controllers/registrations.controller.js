@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import Event, { canRegisterFor } from "../models/Event.js";
 import EventRegistration from "../models/EventRegistration.js";
 import Media from "../models/Media.js";
@@ -17,8 +16,31 @@ const toMediaDTO = (doc) => ({
   createdAt: doc.createdAt,
 });
 
-const generateRegistrationCode = () => `EVT-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-const generateQrToken = () => crypto.randomBytes(32).toString("hex");
+/**
+ * What the guest is allowed to see of their own registration. The codes are
+ * omitted entirely until an admin approves, so a pending or rejected guest has
+ * nothing to present - the door check is not the only thing standing between
+ * them and entry.
+ */
+const toMyRegistrationDTO = (r) => {
+  const base = {
+    id: r._id,
+    eventId: r.eventId,
+    registeredAt: r.registeredAt,
+    approvalStatus: r.approvalStatus || "pending",
+    decidedAt: r.decidedAt || null,
+    decisionNote: r.decisionNote || "",
+    attended: r.attended,
+    checkedInAt: r.checkedInAt || null,
+    planName: r.planName || "",
+    amountDue: r.amountDue ?? null,
+    currency: r.currency || "",
+    paymentStatus: r.paymentStatus,
+    paymentReference: r.paymentReference || "",
+  };
+  if (r.approvalStatus !== "approved") return base;
+  return { ...base, registrationCode: r.registrationCode, qrToken: r.qrToken };
+};
 
 export const registerForEvent = async (req, res, next) => {
   try {
@@ -59,7 +81,7 @@ export const registerForEvent = async (req, res, next) => {
 
     let registration = await EventRegistration.findOne({ eventId, userId });
     if (registration) {
-      return res.json({ registration });
+      return res.json({ registration: toMyRegistrationDTO(registration) });
     }
 
     // Premium events require a plan choice up front; it is snapshotted onto
@@ -82,16 +104,26 @@ export const registerForEvent = async (req, res, next) => {
       };
     }
 
+    // No codes yet. A registration starts as a request; an admin decides, and
+    // approval is what issues the code and QR token.
     registration = await EventRegistration.create({
       eventId,
       userId,
-      registrationCode: generateRegistrationCode(),
-      qrToken: generateQrToken(),
+      approvalStatus: "pending",
       attended: false,
       ...planFields,
     });
 
-    return res.status(201).json({ registration });
+    await logActivity({
+      actor: { userId, role: req.user.role, email: req.user.email },
+      action: "registration.requested",
+      summary: `${user.fullName} requested a place at "${event.title}"`,
+      targetType: "registration",
+      targetId: registration._id,
+      targetLabel: user.fullName,
+    });
+
+    return res.status(201).json({ registration: toMyRegistrationDTO(registration) });
   } catch (err) {
     return next(err);
   }
@@ -105,7 +137,7 @@ export const getMyRegistration = async (req, res, next) => {
     if (!registration) {
       return res.status(404).json(formatError("NOT_REGISTERED", "No registration for this event"));
     }
-    return res.json({ registration });
+    return res.json({ registration: toMyRegistrationDTO(registration) });
   } catch (err) {
     return next(err);
   }
@@ -129,12 +161,36 @@ export const checkIn = async (req, res, next) => {
     }
 
     const query = { eventId };
-    if (registrationCode) query.registrationCode = registrationCode;
-    if (qrToken) query.qrToken = qrToken;
+    // A blank code must never match the many registrations that legitimately
+    // hold none, so an unapproved guest's "empty" code cannot open the door.
+    if (registrationCode) query.registrationCode = String(registrationCode).trim();
+    if (qrToken) query.qrToken = String(qrToken).trim();
+    if (!query.registrationCode && !query.qrToken) {
+      return res.status(400).json(formatError("VALIDATION_ERROR", "registrationCode or qrToken is required"));
+    }
 
     const registration = await EventRegistration.findOne(query);
     if (!registration) {
-      return res.status(404).json(formatError("NOT_REGISTERED", "Registration not found for this event/code"));
+      // Covers a forged QR, a code from a different event, and a code that was
+      // revoked when its registration was rejected - all indistinguishable
+      // from the door's point of view, and all refused.
+      return res.status(404).json(
+        formatError("INVALID_CODE", "That code is not valid for this event. Ask the guest to check their approval email.")
+      );
+    }
+
+    // Approval is the actual permission to attend; the code is only how it is
+    // presented. Re-checked here so a code issued and then revoked is refused.
+    if (registration.approvalStatus !== "approved") {
+      const guestName = (await User.findById(registration.userId).select("fullName").lean())?.fullName;
+      return res.status(403).json(
+        formatError(
+          "NOT_APPROVED",
+          registration.approvalStatus === "rejected"
+            ? `${guestName || "This guest"}'s registration was not approved for this event.`
+            : `${guestName || "This guest"}'s registration is still awaiting approval.`
+        )
+      );
     }
 
     // A premium guest cannot be let in until an admin has confirmed their

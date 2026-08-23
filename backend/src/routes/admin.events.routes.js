@@ -7,6 +7,7 @@ import {
   listPhotographers,
   setCheckInOpen,
   setEventPhotographers,
+  setRegistrationApproval,
   setRegistrationPayment,
   updateEvent,
   uploadEventCover,
@@ -27,6 +28,12 @@ router.get("/:eventId/registrations", requireAuth, requireRole("admin"), listEve
 router.patch("/:eventId", requireAuth, requireRole("admin"), updateEvent);
 router.put("/:eventId/photographers", requireAuth, requireRole("admin"), setEventPhotographers);
 router.patch("/:eventId/checkin-open", requireAuth, requireRole("admin"), setCheckInOpen);
+router.patch(
+  "/:eventId/registrations/:registrationId/approval",
+  requireAuth,
+  requireRole("admin"),
+  setRegistrationApproval
+);
 router.patch(
   "/:eventId/registrations/:registrationId/payment",
   requireAuth,
