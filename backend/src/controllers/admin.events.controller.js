@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
-import Event, { EVENT_STATUSES } from "../models/Event.js";
+import Event, { EVENT_STATUSES, TRASH_RETENTION_DAYS, trashExpiryFor } from "../models/Event.js";
 import User from "../models/User.js";
 import Media from "../models/Media.js";
 import EventRegistration from "../models/EventRegistration.js";
@@ -283,45 +283,180 @@ export const setEventPhotographers = async (req, res, next) => {
   }
 };
 
-/** Deletes the event plus its media files, media rows and registrations. */
+/**
+ * Removes an event from every surface of the app without destroying anything:
+ * media files, media rows and registrations all stay, and `deletedAt` hides the
+ * event through the find hook on the model. It sits in the trash until an admin
+ * restores it or the retention window closes.
+ */
 export const deleteEvent = async (req, res, next) => {
   try {
     const { eventId } = req.params;
-    const event = await Event.findById(eventId);
+    const event = await Event.findById(eventId).setOptions({ includeDeleted: true });
     if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
-
-    const media = await Media.find({ eventId }).lean();
-    for (const item of media) {
-      try {
-        await removeMedia(item.publicId, item.type);
-      } catch (err) {
-        console.warn(`Could not remove file for media ${item._id}:`, err.message);
-      }
+    if (event.deletedAt) {
+      return res.status(409).json(formatError("ALREADY_TRASHED", "This event is already in the trash"));
     }
 
-    const [mediaResult, regResult] = await Promise.all([
-      Media.deleteMany({ eventId }),
-      EventRegistration.deleteMany({ eventId }),
+    event.deletedAt = new Date();
+    await event.save();
+
+    const [mediaCount, registrationCount] = await Promise.all([
+      Media.countDocuments({ eventId }),
+      EventRegistration.countDocuments({ eventId }),
     ]);
-    const title = event.title;
-    await event.deleteOne();
 
     await logActivity({
       actor: req.user,
-      action: "event.deleted",
-      summary: `Deleted event "${title}" (${mediaResult.deletedCount} media, ${regResult.deletedCount} registrations)`,
+      action: "event.trashed",
+      summary: `Moved event "${event.title}" to the trash (${mediaCount} media, ${registrationCount} registrations kept)`,
+      targetType: "event",
+      targetId: eventId,
+      targetLabel: event.title,
+    });
+
+    return res.json({
+      success: true,
+      trashed: true,
+      autoDeleteAt: trashExpiryFor(event.deletedAt),
+      retained: { media: mediaCount, registrations: registrationCount },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
+ * Destroys an event and everything attached to it. Shared by the permanent-delete
+ * button and by the retention sweep, so both delete exactly the same way the old
+ * one-shot endpoint did.
+ */
+const destroyEvent = async (event) => {
+  const media = await Media.find({ eventId: event._id }).lean();
+  for (const item of media) {
+    try {
+      await removeMedia(item.publicId, item.type);
+    } catch (err) {
+      console.warn(`Could not remove file for media ${item._id}:`, err.message);
+    }
+  }
+
+  const [mediaResult, regResult] = await Promise.all([
+    Media.deleteMany({ eventId: event._id }),
+    EventRegistration.deleteMany({ eventId: event._id }),
+  ]);
+  await event.deleteOne();
+
+  return { media: mediaResult.deletedCount, registrations: regResult.deletedCount };
+};
+
+/**
+ * The trash list, plus the retention sweep. Events whose window has closed are
+ * destroyed here rather than by a scheduled job: the trash is the only place
+ * they can be seen, so nothing expires invisibly while an admin is away, and
+ * the app needs no cron.
+ */
+export const listTrashedEvents = async (req, res, next) => {
+  try {
+    const trashed = await Event.find({ deletedAt: { $ne: null } })
+      .sort({ deletedAt: -1 })
+      .lean();
+
+    const now = Date.now();
+    const dated = trashed.map((event) => ({ event, autoDeleteAt: trashExpiryFor(event.deletedAt) }));
+    const expired = dated.filter((d) => d.autoDeleteAt.getTime() < now);
+    const remaining = dated.filter((d) => d.autoDeleteAt.getTime() >= now);
+
+    for (const { event } of expired) {
+      const doc = await Event.findById(event._id).setOptions({ includeDeleted: true });
+      if (!doc) continue;
+      await destroyEvent(doc);
+      await logActivity({
+        actor: req.user,
+        action: "event.expired",
+        summary: `Removed "${doc.title}" from the trash after ${TRASH_RETENTION_DAYS} days`,
+        targetType: "event",
+        targetId: doc._id,
+        targetLabel: doc.title,
+      });
+    }
+
+    const ids = remaining.map((d) => d.event._id);
+    const [mediaCounts, regCounts] = await Promise.all([
+      Media.aggregate([{ $match: { eventId: { $in: ids } } }, { $group: { _id: "$eventId", n: { $sum: 1 } } }]),
+      EventRegistration.aggregate([{ $match: { eventId: { $in: ids } } }, { $group: { _id: "$eventId", n: { $sum: 1 } } }]),
+    ]);
+    const mediaBy = new Map(mediaCounts.map((m) => [String(m._id), m.n]));
+    const regBy = new Map(regCounts.map((r) => [String(r._id), r]));
+
+    return res.json({
+      retentionDays: TRASH_RETENTION_DAYS,
+      autoPurged: expired.length,
+      events: remaining.map(({ event, autoDeleteAt }) => ({
+        ...event,
+        mediaCount: mediaBy.get(String(event._id)) || 0,
+        registrationCount: regBy.get(String(event._id))?.n || 0,
+        autoDeleteAt,
+        daysLeft: Math.max(0, Math.ceil((autoDeleteAt.getTime() - now) / 86400000)),
+      })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/** Puts a trashed event back exactly as it was, media and registrations intact. */
+export const restoreEvent = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).setOptions({ includeDeleted: true });
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+    if (!event.deletedAt) {
+      return res.status(409).json(formatError("NOT_IN_TRASH", "This event is not in the trash"));
+    }
+
+    event.deletedAt = null;
+    await event.save();
+
+    await logActivity({
+      actor: req.user,
+      action: "event.restored",
+      summary: `Restored event "${event.title}" from the trash`,
+      targetType: "event",
+      targetId: eventId,
+      targetLabel: event.title,
+    });
+
+    return res.json({
+      success: true,
+      event: { ...event.toObject(), photographers: (event.photographers || []).map(photographerDTO) },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/** The only route that really deletes anything. No undo. */
+export const purgeEvent = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const event = await Event.findById(eventId).setOptions({ includeDeleted: true });
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
+    const title = event.title;
+    const wasTrashed = !!event.deletedAt;
+    const deleted = await destroyEvent(event);
+
+    await logActivity({
+      actor: req.user,
+      action: "event.purged",
+      summary: `Permanently deleted event "${title}" (${deleted.media} media, ${deleted.registrations} registrations)`,
       targetType: "event",
       targetId: eventId,
       targetLabel: title,
     });
 
-    return res.json({
-      success: true,
-      deleted: {
-        media: mediaResult.deletedCount,
-        registrations: regResult.deletedCount,
-      },
-    });
+    return res.json({ success: true, wasTrashed, deleted });
   } catch (err) {
     return next(err);
   }

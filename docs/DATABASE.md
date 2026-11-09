@@ -34,10 +34,18 @@ It derives `firstName`/`lastName`/`initials` and never includes
   `plans[]` = `{ name, price, description }` — each plan gets its own `_id`
 - **Staffing**: `photographers[]` — only these users, plus admins, may upload
   or delete this event's media
+- **Trash**: `deletedAt` (null when live) — set instead of deleting the row, so
+  the event's media and registrations survive and it can be restored
 
-Helpers: `canRegisterFor(event)` (published **and** registration-open) and
+Helpers: `canRegisterFor(event)` (published **and** registration-open),
 `canManageEventMedia(event, user)` (admin always; photographer only if
-assigned).
+assigned), `trashExpiryFor(deletedAt)` and `TRASH_RETENTION_DAYS` (30).
+
+A `pre(/^find/)` hook adds `deletedAt: null` to every read unless the query
+already filters on `deletedAt` or passes `includeDeleted: true`. Events are read
+from about twenty places across five controllers, so hiding the trashed ones at
+the schema is what makes it impossible to forget in one of them; opting out is
+only how the trash list and the seed's duplicate check work.
 
 ## eventregistrations (`EventRegistration.js`)
 

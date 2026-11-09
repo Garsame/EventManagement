@@ -71,9 +71,13 @@ const demoEvents = [
 
 const seedEvents = async (createdBy) => {
   for (const event of demoEvents) {
-    const existing = await Event.findOne({ title: event.title });
+    // includeDeleted, otherwise trashing a demo event would make the next run
+    // create a second copy of it under the same title.
+    const existing = await Event.findOne({ title: event.title }).setOptions({ includeDeleted: true });
     if (existing) {
-      console.log("event already exists:", event.title);
+      console.log(
+        existing.deletedAt ? `event is in the trash, left alone: ${event.title}` : `event already exists: ${event.title}`
+      );
       continue;
     }
 

@@ -247,6 +247,13 @@ export const galleryGate = async (req, res, next) => {
   try {
     const { eventId } = req.params;
     const userId = req.user.userId;
+
+    // The gallery used to answer from the registration row alone, so an event
+    // that was no longer there kept serving its photos. Now that trashing hides
+    // an event everywhere else, it has to close the gallery too.
+    const event = await Event.findById(eventId).select("_id").lean();
+    if (!event) return res.status(404).json(formatError("NOT_FOUND", "Event not found"));
+
     const registration = await EventRegistration.findOne({ eventId, userId }).lean();
     if (!registration) {
       return res.status(403).json(formatError("NOT_REGISTERED", "Please register first"));

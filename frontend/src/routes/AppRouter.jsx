@@ -26,6 +26,7 @@ import { usePhotographerAuth } from "../context/PhotographerAuthContext.jsx";
 import AdminOverviewPage from "../pages/admin/AdminOverviewPage.jsx";
 import AdminUsersPage from "../pages/admin/AdminUsersPage.jsx";
 import AdminEventsConsolePage from "../pages/admin/AdminEventsConsolePage.jsx";
+import AdminEventTrashPage from "../pages/admin/AdminEventTrashPage.jsx";
 import AdminPremiumEventsPage from "../pages/admin/AdminPremiumEventsPage.jsx";
 import AdminEventRegistrationsPage from "../pages/admin/AdminEventRegistrationsPage.jsx";
 import AdminCheckInConsolePage from "../pages/admin/AdminCheckInConsolePage.jsx";
@@ -80,6 +81,7 @@ export default function AppRouter() {
       <Route path="/maamul/dashboard" element={<AdminGuard><AdminOverviewPage /></AdminGuard>} />
       <Route path="/maamul/users/:group" element={<AdminGuard><AdminUsersPage /></AdminGuard>} />
       <Route path="/maamul/events" element={<AdminGuard><AdminEventsConsolePage /></AdminGuard>} />
+      <Route path="/maamul/events/trash" element={<AdminGuard><AdminEventTrashPage /></AdminGuard>} />
       <Route path="/maamul/premium-events" element={<AdminGuard><AdminPremiumEventsPage /></AdminGuard>} />
       <Route path="/maamul/events/:eventId/media" element={<AdminGuard><AdminMediaManagePage /></AdminGuard>} />
       <Route path="/maamul/events/:eventId/registrations" element={<AdminGuard><AdminEventRegistrationsPage /></AdminGuard>} />

@@ -228,7 +228,9 @@ export default function AdminEventsConsolePage({ premium = false }) {
     setError("");
     try {
       const res = await adminClient.delete(`/api/admin/events/${event._id}`);
-      setMessage(`Deleted "${event.title}" (${res.data.deleted.media} media, ${res.data.deleted.registrations} registrations).`);
+      setMessage(
+        `Moved "${event.title}" to the trash. Its ${res.data.retained.media} media file(s) and ${res.data.retained.registrations} registration(s) are kept, so you can restore it from Trash.`
+      );
       setDeleteTarget(null);
       await load();
     } catch (err) {
@@ -243,7 +245,12 @@ export default function AdminEventsConsolePage({ premium = false }) {
     <AdminConsoleLayout
       title={premium ? "Premium Events" : "Events"}
       subtitle={`${events.filter((e) => !!e.isPremium === premium).length} event(s)`}
-      actions={<Button type="button" onClick={openCreate}>{premium ? "+ Create a premium event" : "+ Create a new event"}</Button>}
+      actions={
+        <div className="flex gap-2 items-center">
+          <Link to="/maamul/events/trash" className="btn btn-ghost">Trash</Link>
+          <Button type="button" onClick={openCreate}>{premium ? "+ Create a premium event" : "+ Create a new event"}</Button>
+        </div>
+      }
     >
       {message && <Alert variant="success" className="mb-4">{message}</Alert>}
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
@@ -519,7 +526,7 @@ export default function AdminEventsConsolePage({ premium = false }) {
         title={`Delete "${deleteTarget?.title}"?`}
         message={
           deleteTarget
-            ? `This also deletes ${deleteTarget.mediaCount} media file(s) and ${deleteTarget.registrationCount} registration(s). This cannot be undone.`
+            ? `It leaves the site, the Events page and the check-in desk straight away. Its ${deleteTarget.mediaCount} media file(s) and ${deleteTarget.registrationCount} registration(s) stay attached, so you can restore it from Trash at any time in the next 30 days.`
             : ""
         }
         confirmLabel="Delete"
