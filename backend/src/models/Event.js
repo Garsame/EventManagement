@@ -36,10 +36,34 @@ const eventSchema = new mongoose.Schema({
   // Photographers an admin has put on this event. Only these (and admins) may
   // upload or delete its media.
   photographers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  // Soft delete. Null means the event is live. A trashed event keeps its media
+  // and registrations so that restoring it is complete, and it is hidden by the
+  // find hook below rather than by each query remembering to ask for it.
+  deletedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
 });
 
 export const EVENT_STATUSES = ["draft", "registration-open", "completed"];
+
+/** How long a trashed event can still be restored. */
+export const TRASH_RETENTION_DAYS = 30;
+
+/** The moment a trashed event stops being restorable. */
+export const trashExpiryFor = (deletedAt) =>
+  new Date(new Date(deletedAt).getTime() + TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+/**
+ * Hides trashed events from every read by default. The alternative was adding
+ * `deletedAt: null` to each of the ~20 Event queries across five controllers,
+ * where one omission would publish a deleted event rather than merely show an
+ * extra row. A query that filters on deletedAt itself is left alone, which is
+ * how the trash list reads, and `includeDeleted` opts out entirely.
+ */
+eventSchema.pre(/^find/, function (next) {
+  if (this.getOptions().includeDeleted === true) return next();
+  if (this.getFilter().deletedAt === undefined) this.where({ deletedAt: null });
+  return next();
+});
 
 /** A guest may only take a place while the event is published and open. */
 export const canRegisterFor = (event) =>

@@ -5,6 +5,9 @@ import {
   listAllEvents,
   listEventRegistrations,
   listPhotographers,
+  listTrashedEvents,
+  purgeEvent,
+  restoreEvent,
   setCheckInOpen,
   setEventPhotographers,
   setRegistrationApproval,
@@ -24,8 +27,10 @@ router.get("/", requireAuth, requireRole("admin", "photographer"), listAllEvents
 
 router.post("/", requireAuth, requireRole("admin"), createEvent);
 router.get("/photographers", requireAuth, requireRole("admin"), listPhotographers);
+router.get("/trash", requireAuth, requireRole("admin"), listTrashedEvents);
 router.get("/:eventId/registrations", requireAuth, requireRole("admin"), listEventRegistrations);
 router.patch("/:eventId", requireAuth, requireRole("admin"), updateEvent);
+router.patch("/:eventId/restore", requireAuth, requireRole("admin"), restoreEvent);
 router.put("/:eventId/photographers", requireAuth, requireRole("admin"), setEventPhotographers);
 router.patch("/:eventId/checkin-open", requireAuth, requireRole("admin"), setCheckInOpen);
 router.patch(
@@ -48,6 +53,8 @@ router.post(
   handleUploadErrors,
   uploadEventCover
 );
+// DELETE moves an event to the trash; permanent really removes it.
 router.delete("/:eventId", requireAuth, requireRole("admin"), deleteEvent);
+router.delete("/:eventId/permanent", requireAuth, requireRole("admin"), purgeEvent);
 
 export default router;

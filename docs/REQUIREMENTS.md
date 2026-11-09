@@ -151,9 +151,11 @@ Some events charge for participation.
 - Media upload/delete with per-event assignment, batch uploads,
   hover-to-download in the gallery.
 - Activity log and reports.
+- Event trash: deleting hides an event everywhere and keeps its media and
+  registrations, with restore, permanent delete, and a 30-day retention window.
 - Light/dark theme, applied before first paint (`ems_theme`).
-- Tests: **93 backend** (`node --test`, own `event_media_test` DB) and
-  **11 frontend** (vitest). All passing.
+- Tests: **126 backend** (`node --test`, one scratch database per suite) and
+  **16 frontend** (vitest). All passing.
 
 ## 11. Not built yet
 
@@ -161,4 +163,5 @@ Some events charge for participation.
 - Payment is manual confirmation only — no gateway integration.
 - No pagination anywhere; fine at current volume.
 - OTP email delivery depends on SMTP env vars being set.
-- No soft-delete for events — deleting an event is permanent.
+- The retention sweep only runs when an admin opens the trash, so an event whose
+  window closed still occupies the database until then.

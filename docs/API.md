@@ -118,8 +118,11 @@ Admin-only except the list, which photographers may read to find their events.
 | GET | `/admin/events` | admin, photographer |
 | POST | `/admin/events` | admin |
 | GET | `/admin/events/photographers` | admin |
+| GET | `/admin/events/trash` | admin |
 | PATCH | `/admin/events/:eventId` | admin |
-| DELETE | `/admin/events/:eventId` | admin |
+| PATCH | `/admin/events/:eventId/restore` | admin |
+| DELETE | `/admin/events/:eventId` | admin — moves it to the trash |
+| DELETE | `/admin/events/:eventId/permanent` | admin |
 | POST | `/admin/events/:eventId/cover` | admin (multipart `file`) |
 | PUT | `/admin/events/:eventId/photographers` | admin |
 | PATCH | `/admin/events/:eventId/checkin-open` | admin |
@@ -129,6 +132,27 @@ Admin-only except the list, which photographers may read to find their events.
 Create requires `title`, `startDateTime`, `endDateTime`; defaults are
 `visibility=public`, `published=true`, `status=draft`, `checkInOpen=false`.
 `isPremium` is only honoured at creation.
+
+### Trashing and restoring an event
+
+`DELETE /admin/events/:eventId` does not destroy anything. It sets `deletedAt`,
+after which the event is hidden by every read in the app - the public list, the
+details page, registration, check-in, the gallery, the admin table and the
+photographer console - while its media files, media rows and registrations stay
+untouched in the database. Trashing an event already in the trash is `409
+ALREADY_TRASHED`.
+
+`GET /admin/events/trash` lists what can still be brought back, each row carrying
+`mediaCount`, `registrationCount`, `autoDeleteAt` and `daysLeft`, plus
+`autoPurged` for anything this visit swept out. `PATCH /admin/events/:eventId/restore`
+puts the event back exactly as it was and `409 NOT_IN_TRASH` if it was not in the
+trash. `DELETE /admin/events/:eventId/permanent` is the only route that destroys
+data; it removes the event, its media files, its media rows and its registrations,
+and works whether or not the event was trashed first.
+
+An event leaves the trash on its own after 30 days (`TRASH_RETENTION_DAYS`). That
+sweep runs when the trash is listed rather than from a scheduler, so nothing
+expires unseen and the app still needs no cron.
 
 ## Admin — users (`admin.users.routes.js`)
 

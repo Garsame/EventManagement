@@ -122,9 +122,20 @@ cd backend
 npm test
 ```
 
-Runs against a separate `event_media_test` database and drops it afterwards, so
-development data is untouched. Covers the gallery gate, role guards, and
-registration behaviour.
+Runs against scratch databases - `event_media_test` for `galleryGate.test.js`
+and `event_media_trash_test` for `eventTrash.test.js` - and drops them
+afterwards, so development data is untouched. Each suite gets its own because
+`node --test` runs the files at the same time. Covers the gallery gate, role
+guards, registration behaviour, and the whole event trash flow.
+
+## Event Trash
+
+Deleting an event from `/maamul/events` only moves it to `/maamul/events/trash`.
+While it is there nobody can see it, register for it, check guests in for it or
+open its gallery, but its photos and registrations stay in the database, so
+Restore gives the event back exactly as it was. Anything older than 30 days is
+destroyed the next time an admin opens the trash; **Delete permanently** destroys
+it immediately and cannot be undone.
 
 ## Quick Auth Test
 

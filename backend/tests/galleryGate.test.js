@@ -1231,7 +1231,10 @@ describe("admin event management", () => {
       .expect(400);
   });
 
-  test("deleting an event removes its registrations and media rows", async () => {
+  // A plain DELETE now only moves the event to the trash, which eventTrash.test.js
+  // covers. This one keeps asserting actual removal, so it goes through the
+  // permanent route.
+  test("permanently deleting an event removes its registrations and media rows", async () => {
     const doomed = await Event.create({
       title: "Doomed Event",
       startDateTime: new Date("2027-03-01T10:00:00Z"),
@@ -1249,7 +1252,7 @@ describe("admin event management", () => {
       .expect(201);
 
     const res = await request(app)
-      .delete(`/api/admin/events/${doomed._id}`)
+      .delete(`/api/admin/events/${doomed._id}/permanent`)
       .set("Authorization", `Bearer ${admin.token}`)
       .expect(200);
 
